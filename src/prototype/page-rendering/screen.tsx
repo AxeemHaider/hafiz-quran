@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PrototypeSwitcher } from '@/components/prototype-switcher';
 import { FONT_NAMES, FONT_SOURCES, PAGES, SKIA_FONT_SOURCES, REFERENCE_IMAGE, type FontName, type Unit } from '@/prototype/page-rendering/data';
 import type { Stats } from '@/prototype/page-rendering/layout';
+import { PageFrame, frameInner } from '@/prototype/page-rendering/frame';
 import { VariantA } from '@/prototype/page-rendering/variant-a-skia-per-word';
 import { VariantB } from '@/prototype/page-rendering/variant-b-skia-per-line';
 import { VariantC } from '@/prototype/page-rendering/variant-c-rn-text';
@@ -22,7 +23,6 @@ const VARIANTS = [
 // Simulated screens (dp). "device" uses the real safe area. Others are drawn at that size, scaled to fit.
 const PRESETS = { device: null, '360×640': [360, 640], '430×932': [430, 932], '820×1180 tab': [820, 1180] } as const;
 type Preset = keyof typeof PRESETS;
-const MARGIN = 8; // stand-in for the Page Frame, which this ticket doesn't design
 const ORDER = [...PAGES].reverse(); // RTL: next page sits to the left
 const START = ORDER.findIndex((p) => p.page === 400);
 
@@ -59,8 +59,7 @@ export default function PrototypePageRendering() {
   const dims = PRESETS[preset];
   const box = dims ? { w: dims[0], h: dims[1] } : { w: availW, h: availH };
   const scale = Math.min(1, availW / box.w, availH / box.h);
-  const W = box.w - 2 * MARGIN;
-  const H = box.h - 2 * MARGIN;
+  const { W, H } = frameInner(box.w, box.h);
 
   const viewable = useCallback(({ viewableItems }: { viewableItems: { item: (typeof PAGES)[number] }[] }) => {
     if (viewableItems[0]) setCurrent(viewableItems[0].item.page);
@@ -89,10 +88,15 @@ export default function PrototypePageRendering() {
             showsHorizontalScrollIndicator={false}
             renderItem={({ item }) => (
               <View style={{ width: availW, height: availH, alignItems: 'center', justifyContent: 'center' }}>
-                <View style={[styles.page, { width: box.w, height: box.h, padding: MARGIN, transform: [{ scale }] }]}>
+                <View style={[styles.page, { width: box.w, height: box.h, transform: [{ scale }] }]}>
                   {reference && item.page === 400 ? (
-                    <Image source={REFERENCE_IMAGE} style={{ width: W, height: H }} resizeMode="contain" />
+                    // Crop the screenshot to its page region (px 62–1532 of 720×1600), scaled to the box width.
+                    <Image
+                      source={REFERENCE_IMAGE}
+                      style={{ width: box.w, height: (box.w * 1600) / 720, marginTop: (-box.w * 62) / 720 }}
+                    />
                   ) : (
+                    <PageFrame page={item} w={box.w} h={box.h} font={font}>
                     <V
                       page={item}
                       W={W}
@@ -105,6 +109,7 @@ export default function PrototypePageRendering() {
                       onSelect={setSelected}
                       onStats={onStats}
                     />
+                    </PageFrame>
                   )}
                 </View>
               </View>
@@ -156,7 +161,7 @@ function Chip({ label, onPress }: { label: string; onPress: () => void }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#e9e4d4' },
-  page: { backgroundColor: '#fdfaf0' },
+  page: { backgroundColor: '#fdfaf0', overflow: 'hidden' },
   loading: { margin: 40, textAlign: 'center' },
   hud: { position: 'absolute', left: 6, right: 6, gap: 3 },
   hudToggle: { position: 'absolute', left: 0, width: 40, height: 40 },
