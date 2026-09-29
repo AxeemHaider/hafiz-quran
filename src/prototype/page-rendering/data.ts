@@ -23,6 +23,10 @@ export const FONT_SOURCES = {
   HanafiCompressed: require('./local/B-hanafi-compressed.ttf'),
 };
 export type FontName = keyof typeof FONT_SOURCES;
+/** Skia's useFonts wants an array of files per family (expo-font wants one). */
+export const SKIA_FONT_SOURCES = Object.fromEntries(
+  Object.entries(FONT_SOURCES).map(([k, v]) => [k, [v]]),
+) as Record<FontName, number[]>;
 export const FONT_NAMES = Object.keys(FONT_SOURCES) as FontName[];
 export const REFERENCE_IMAGE = require('./local/reference-p401.jpg');
 
