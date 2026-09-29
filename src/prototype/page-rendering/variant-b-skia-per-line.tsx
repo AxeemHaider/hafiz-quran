@@ -11,7 +11,7 @@ import { makePara, spaceWidth } from './variant-a-skia-per-word';
 export function VariantB({ page, W, H, font, fontMgr, rule, showBoxes, selected, onSelect, onStats }: VariantProps) {
   const built = useMemo(() => {
     const t0 = now();
-    const units = page.lines.map(lineUnits);
+    const units = page.lines.map((l) => lineUnits(l, font));
     const justified = page.lines.map(isJustified);
     const texts = units.map((us) => us.map((u) => u.text).join(' '));
     // Fit uses whole-Line natural widths (as one "word" so fitPage adds no spaces), shrunk to minGap spaces.
@@ -20,7 +20,7 @@ export function VariantB({ page, W, H, font, fontMgr, rule, showBoxes, selected,
       makePara(fontMgr, font, t, 100).getMaxIntrinsicWidth() - (1 - rule.minGap) * space100 * (t.split(' ').length - 1),
     ]);
     const lh100 = makePara(fontMgr, font, texts[0], 100).getHeight();
-    const fit = fitPage(lines100, 0, lh100, W, H, rule);
+    const fit = fitPage(lines100, 0, lh100, W, H, rule, font);
     const space = spaceWidth(fontMgr, font, fit.size);
     const gaps: number[] = [];
     const lines = texts.map((t, i) => {

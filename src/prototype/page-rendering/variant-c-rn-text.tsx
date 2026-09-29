@@ -16,7 +16,7 @@ export function VariantC(props: VariantProps) {
 }
 
 function Inner({ page, W, H, font, rule, showBoxes, selected, onSelect, onStats }: VariantProps) {
-  const units = useMemo(() => page.lines.map(lineUnits), [page]);
+  const units = useMemo(() => page.lines.map((l) => lineUnits(l, font)), [page, font]);
   const justified = useMemo(() => page.lines.map(isJustified), [page]);
   const [m, setM] = useState<Measured | null>(null);
   const [t0] = useState(now);
@@ -34,7 +34,7 @@ function Inner({ page, W, H, font, rule, showBoxes, selected, onSelect, onStats 
     });
   };
 
-  const fit = m ? fitPage(m.widths, m.space, m.lh, W, H, rule) : null;
+  const fit = m ? fitPage(m.widths, m.space, m.lh, W, H, rule, font) : null;
 
   // Actual gaps at the final size, from each word's onLayout x.
   const placed = useRef(new Map<string, { x: number; w: number }>());

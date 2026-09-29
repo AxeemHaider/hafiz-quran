@@ -1,5 +1,5 @@
 // PROTOTYPE (ticket #6). Pure page-fit + placement math shared by all variants.
-import { LINES_PER_PAGE } from './data';
+import { LINES_PER_PAGE, type FontName } from './data';
 
 /** Wall clock for build timings (wrapped so render-time timing reads as intentional). */
 export const now = () => performance.now();
@@ -7,10 +7,15 @@ export const now = () => performance.now();
 /** How the Page size is chosen. minGap = smallest inter-word gap as a fraction of a normal space. */
 export type FitRule = { minGap: number; ink: boolean };
 /**
- * Ink height of the QUL Indopak Nastaleeq builds in em (-0.45..1.18), measured offline with HarfBuzz over
- * page 400. The font's own line height is 2.11 em, so fitting by it wastes ~30% of each Line's pitch.
+ * Ink height in em, measured offline with HarfBuzz over page 400. Indopak Nastaleeq: -0.45..1.18 vs a
+ * 2.11 em font line height (~30% of each Line's pitch wasted if fitted by it). DigitalKhatt: 1.94 vs 2.40.
  */
-export const INK_EM = 1.63;
+export const INK_EM: Record<FontName, number> = {
+  HanafiNormal: 1.63,
+  HanafiCompact: 1.63,
+  HanafiCompressed: 1.63,
+  DigitalKhatt: 1.94,
+};
 
 export type Box = { x: number; y: number; w: number; h: number };
 export type Fit = {
@@ -33,6 +38,7 @@ export function fitPage(
   W: number,
   H: number,
   rule: FitRule,
+  font: FontName,
 ): Fit {
   let widthSize = Infinity;
   for (const ws of widths100) {
@@ -40,7 +46,7 @@ export function fitPage(
     widthSize = Math.min(widthSize, (W * 100) / natural);
   }
   const pitch = H / LINES_PER_PAGE;
-  const heightSize = rule.ink ? pitch / INK_EM : (pitch * 100) / lineHeight100;
+  const heightSize = rule.ink ? pitch / INK_EM[font] : (pitch * 100) / lineHeight100;
   const size = Math.floor(Math.min(widthSize, heightSize) * 10) / 10;
   return { size, widthSize, heightSize, bind: widthSize <= heightSize ? 'width' : 'height', pitch };
 }

@@ -36,11 +36,11 @@ export const spaceWidth = (fontMgr: SkTypefaceFontProvider, font: string, size: 
 export function VariantA({ page, W, H, font, fontMgr, rule, showBoxes, selected, onSelect, onStats }: VariantProps) {
   const built = useMemo(() => {
     const t0 = now();
-    const units = page.lines.map(lineUnits);
+    const units = page.lines.map((l) => lineUnits(l, font));
     const justified = page.lines.map(isJustified);
     const widths100 = units.map((us) => us.map((u) => makePara(fontMgr, font, u.text, 100).getMaxIntrinsicWidth()));
     const lh100 = makePara(fontMgr, font, units[0][0].text, 100).getHeight();
-    const fit = fitPage(widths100, spaceWidth(fontMgr, font, 100), lh100, W, H, rule);
+    const fit = fitPage(widths100, spaceWidth(fontMgr, font, 100), lh100, W, H, rule, font);
     const paras = units.map((us) => us.map((u) => makePara(fontMgr, font, u.text, fit.size)));
     const widths = paras.map((ps) => ps.map((p) => p.getMaxIntrinsicWidth()));
     const space = spaceWidth(fontMgr, font, fit.size);
