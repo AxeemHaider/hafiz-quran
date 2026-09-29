@@ -5,7 +5,8 @@ import { LINES_PER_PAGE } from './data';
 export const now = () => performance.now();
 
 /** How the Page size is chosen. minGap = smallest inter-word gap as a fraction of a normal space. */
-export type FitRule = { minGap: number; ink: boolean };
+/** widen = fill each justified Line by widening its words (gaps stay at minGap), not by widening gaps. */
+export type FitRule = { minGap: number; ink: boolean; widen: boolean };
 /**
  * Ink height of the QUL Indopak Nastaleeq builds in em (-0.45..1.18), measured offline with HarfBuzz over
  * page 400. The font's own line height is 2.11 em, so fitting by it wastes ~30% of each Line's pitch.
@@ -20,7 +21,7 @@ export type Fit = {
   bind: 'width' | 'height';
   pitch: number;
 };
-export type Stats = Fit & { buildMs: number; gapMin: number; gapMax: number; overflow: boolean };
+export type Stats = Fit & { buildMs: number; gapMin: number; gapMax: number; overflow: boolean; sxMax: number };
 
 /**
  * One font size for the whole Page: the largest size at which every Line fits W with at least
@@ -45,28 +46,37 @@ export function fitPage(
   return { size, widthSize, heightSize, bind: widthSize <= heightSize ? 'width' : 'height', pitch };
 }
 
-/** Places words right-to-left. Returns boxes (row = full pitch, for hit-testing) and gap per Line. */
+/**
+ * Places words right-to-left. Returns boxes (drawn width; row = full pitch, for hit-testing), the gap
+ * per Line, and sx per Line: the horizontal scale applied to its words (1 unless widening).
+ * widenGap: when set, justified Lines keep this gap and widen their words to fill W instead.
+ */
 export function placeLines(
   widths: number[][],
   justified: boolean[],
   space: number,
   W: number,
   pitch: number,
+  widenGap: number | null = null,
 ) {
   const gaps: number[] = [];
+  const sx: number[] = [];
   const boxes = widths.map((ws, i) => {
     const sum = ws.reduce((a, b) => a + b, 0);
-    const gap = justified[i] ? (W - sum) / (ws.length - 1) : space;
+    const widen = justified[i] && widenGap !== null;
+    const gap = widen ? widenGap : justified[i] ? (W - sum) / (ws.length - 1) : space;
+    const s = widen ? (W - gap * (ws.length - 1)) / sum : 1;
     gaps.push(gap);
+    sx.push(s);
     let x = justified[i] ? W : (W + sum + gap * (ws.length - 1)) / 2;
     return ws.map((w) => {
-      x -= w;
-      const box = { x, y: i * pitch, w, h: pitch };
+      x -= w * s;
+      const box = { x, y: i * pitch, w: w * s, h: pitch };
       x -= gap;
       return box;
     });
   });
-  return { boxes, gaps };
+  return { boxes, gaps, sx };
 }
 
 export function gapStats(gaps: number[], justified: boolean[], space: number) {

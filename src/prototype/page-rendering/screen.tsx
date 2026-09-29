@@ -42,7 +42,8 @@ export default function PrototypePageRendering() {
   const [preset, setPreset] = useState<Preset>('device');
   const [minGap, setMinGap] = useState(0.25);
   const [ink, setInk] = useState(true);
-  const rule = useMemo(() => ({ minGap, ink }), [minGap, ink]);
+  const [widen, setWiden] = useState(true);
+  const rule = useMemo(() => ({ minGap, ink, widen }), [minGap, ink, widen]);
   const [stretch, setStretch] = useState(1.3);
   const [showBoxes, setShowBoxes] = useState(false);
   const [reference, setReference] = useState(false);
@@ -128,6 +129,7 @@ export default function PrototypePageRendering() {
               <Chip label={preset} onPress={() => setPreset(cycle(Object.keys(PRESETS) as Preset[], preset))} />
               <Chip label={`gap ≥${minGap}×`} onPress={() => setMinGap(cycle([1, 0.5, 0.25, 0], minGap))} />
               <Chip label={`stretch ${stretch}×`} onPress={() => setStretch(cycle([1, 1.2, 1.3, 1.4, 1.6], stretch))} />
+              <Chip label={widen ? 'fill: widen' : 'fill: gaps'} onPress={() => setWiden(!widen)} />
               <Chip label={ink ? 'fit ink' : 'fit line-height'} onPress={() => setInk(!ink)} />
               <Chip label={showBoxes ? 'boxes' : 'no boxes'} onPress={() => setShowBoxes(!showBoxes)} />
               <Chip label={reference ? 'REF' : 'ref'} onPress={() => setReference(!reference)} />
@@ -136,7 +138,7 @@ export default function PrototypePageRendering() {
             <Text style={styles.stats}>
               p{current} (print {current + 1}) · {W.toFixed(0)}×{H.toFixed(0)}dp
               {s
-                ? ` · size ${s.size} (${s.bind}; w ${s.widthSize.toFixed(1)} h ${s.heightSize.toFixed(1)}) · gap ${s.gapMin.toFixed(2)}–${s.gapMax.toFixed(2)}× space${s.overflow ? ' · OVERFLOW' : ''} · build ${s.buildMs.toFixed(0)}ms`
+                ? ` · size ${s.size} (${s.bind}; w ${s.widthSize.toFixed(1)} h ${s.heightSize.toFixed(1)}) · gap ${s.gapMin.toFixed(2)}–${s.gapMax.toFixed(2)}× space · widen ≤+${((s.sxMax - 1) * 100).toFixed(0)}%${s.overflow ? ' · OVERFLOW' : ''} · build ${s.buildMs.toFixed(0)}ms`
                 : ' · measuring…'}
             </Text>
             {selected && (

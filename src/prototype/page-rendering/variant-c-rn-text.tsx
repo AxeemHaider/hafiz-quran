@@ -1,7 +1,7 @@
 // PROTOTYPE (ticket #6). Variant C: RN <Text> per word, row-reverse + space-between per Line.
 // RN has no synchronous text measure, so an invisible pass at 100pt collects widths via onLayout first.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { isJustified, lineUnits } from './data';
 import { fitPage, gapStats, now } from './layout';
@@ -35,6 +35,15 @@ function Inner({ page, W, H, font, rule, stretch, showBoxes, selected, onSelect,
   };
 
   const fit = m ? fitPage(m.widths, m.space, m.lh, W, H, rule) : null;
+  // widen: per justified Line, the sideways scale that fills W with minGap gaps (from 100pt widths).
+  const sx =
+    fit && m
+      ? m.widths.map((ws, i) => {
+          if (!rule.widen || !justified[i]) return 1;
+          const sum = (ws.reduce((a, b) => a + b, 0) * fit.size) / 100;
+          return (W - (rule.minGap * m.space * fit.size * (ws.length - 1)) / 100) / sum;
+        })
+      : [];
 
   // Actual gaps at the final size, from each word's onLayout x.
   const placed = useRef(new Map<string, { x: number; w: number }>());
@@ -53,7 +62,7 @@ function Inner({ page, W, H, font, rule, stretch, showBoxes, selected, onSelect,
   };
 
   useEffect(() => {
-    if (fit && gapReport) onStats(page.page, { ...fit, ...gapReport, buildMs: now() - t0 });
+    if (fit && gapReport) onStats(page.page, { ...fit, ...gapReport, sxMax: Math.max(...sx), buildMs: now() - t0 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gapReport]);
 
@@ -92,21 +101,28 @@ function Inner({ page, W, H, font, rule, stretch, showBoxes, selected, onSelect,
                 columnGap: justified[i] ? 0 : (m!.space * fit.size) / 100,
               },
             ]}>
-            {us.map((u) => (
-              <Text
+            {us.map((u, j) => (
+              // The wrapper takes the widened width; the Text scales sideways from its right edge into it.
+              <Pressable
                 key={u.key}
-                numberOfLines={1}
                 onPress={() => onSelect(u)}
                 onLayout={(e) => recordPlaced(u.key, e.nativeEvent.layout.x, e.nativeEvent.layout.width)}
                 style={[
-                  fam,
-                  styles.word,
-                  { fontSize: fit.size, transform: [{ scaleY: stretch }] },
+                  styles.wrap,
+                  sx[i] !== 1 && { width: (m!.widths[i][j] * fit.size * sx[i]) / 100 },
                   u.key === selected && styles.selected,
                   showBoxes && styles.box,
                 ]}>
-                {u.text}
-              </Text>
+                <Text
+                  numberOfLines={1}
+                  style={[
+                    fam,
+                    styles.word,
+                    { fontSize: fit.size, transform: [{ scaleX: sx[i] }, { scaleY: stretch }], transformOrigin: 'right' },
+                  ]}>
+                  {u.text}
+                </Text>
+              </Pressable>
             ))}
           </View>
         ))}
@@ -117,6 +133,7 @@ function Inner({ page, W, H, font, rule, stretch, showBoxes, selected, onSelect,
 const styles = StyleSheet.create({
   measure: { position: 'absolute', left: -20000, top: 0, opacity: 0, alignItems: 'flex-start' },
   line: { position: 'absolute', left: 0, flexDirection: 'row-reverse', alignItems: 'center' },
+  wrap: { flexShrink: 0, alignItems: 'flex-end' },
   word: { flexShrink: 0, includeFontPadding: false, color: '#1a1a1a' },
   selected: { backgroundColor: '#f5d76e' },
   box: { borderWidth: 0.5, borderColor: '#e5484d' },

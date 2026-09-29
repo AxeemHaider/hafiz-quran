@@ -45,20 +45,21 @@ export function VariantA({ page, W, H, font, fontMgr, rule, stretch, showBoxes, 
     const paras = units.map((us) => us.map((u) => makePara(fontMgr, font, u.text, fit.size)));
     const widths = paras.map((ps) => ps.map((p) => p.getMaxIntrinsicWidth()));
     const space = spaceWidth(fontMgr, font, fit.size);
-    const { boxes, gaps } = placeLines(widths, justified, space, W, fit.pitch);
+    const { boxes, gaps, sx } = placeLines(widths, justified, space, W, fit.pitch, rule.widen ? rule.minGap * space : null);
     const lh = paras[0][0].getHeight();
     const stats = {
       ...fit,
       ...gapStats(gaps, justified, space),
       overflow: gaps.some((g) => g < 0),
+      sxMax: Math.max(...sx),
       buildMs: now() - t0,
     };
-    return { units, paras, boxes, lh, stats };
+    return { units, paras, boxes, widths, sx, lh, stats };
   }, [page, W, H, font, fontMgr, rule]);
 
   useEffect(() => onStats(page.page, built.stats), [built, onStats, page.page]);
 
-  const { units, paras, boxes, lh, stats } = built;
+  const { units, paras, boxes, widths, sx, lh, stats } = built;
   return (
     <Pressable
       onPress={(e) => {
@@ -83,14 +84,18 @@ export function VariantA({ page, W, H, font, fontMgr, rule, stretch, showBoxes, 
                   strokeWidth={0.5}
                 />
               ) : null,
-              // Stretch around the Line's vertical centre.
-              <Group key={u.key} origin={{ x: 0, y: b.y + stats.pitch / 2 }} transform={[{ scaleY: stretch }]}>
+              // Widen from the box's left edge (sx) and stretch around the Line's vertical centre.
+              <Group
+                key={u.key}
+                origin={{ x: b.x, y: b.y + stats.pitch / 2 }}
+                transform={[{ scaleX: sx[i] }, { scaleY: stretch }]}>
                 <Paragraph
                   paragraph={paras[i][j]}
-                  // RTL paragraphs right-align inside their layout width; pin the right edge to the box.
-                  x={b.x + b.w - (Math.ceil(b.w) + 2)}
+                  // RTL paragraphs right-align inside their layout width; pin the right edge to the
+                  // unscaled word's right edge.
+                  x={b.x + widths[i][j] - (Math.ceil(widths[i][j]) + 2)}
                   y={b.y + (stats.pitch - lh) / 2}
-                  width={Math.ceil(b.w) + 2}
+                  width={Math.ceil(widths[i][j]) + 2}
                 />
               </Group>,
             ];

@@ -27,10 +27,13 @@ export function VariantB({ page, W, H, font, fontMgr, rule, stretch, showBoxes, 
       // Spaces inside a word (e.g. "سَلٰمٌ ۫") also get stretched: a known weakness of this variant.
       const spaces = t.split(' ').length - 1;
       const natural = makePara(fontMgr, font, t, fit.size).getMaxIntrinsicWidth();
-      const extra = justified[i] && spaces > 0 ? (W - natural) / spaces : 0;
-      gaps.push(space + extra);
+      // widen: shrink spaces to minGap, then scale the whole Line sideways to fill W.
+      const widen = rule.widen && justified[i] && spaces > 0;
+      const extra = widen ? (rule.minGap - 1) * space : justified[i] && spaces > 0 ? (W - natural) / spaces : 0;
       const p = makePara(fontMgr, font, t, fit.size, extra);
       const width = p.getLongestLine();
+      const sx = widen ? W / width : 1;
+      gaps.push((space + extra) * sx);
       // RTL: the line right-aligns inside layout width lw; x is where the paragraph box starts.
       const lw = Math.ceil(width) + 2;
       p.layout(lw);
@@ -41,15 +44,17 @@ export function VariantB({ page, W, H, font, fontMgr, rule, stretch, showBoxes, 
         off += u.text.length + 1;
         const l = Math.min(...rs.map((r) => r.x));
         const r = Math.max(...rs.map((r) => r.x + r.width));
-        return { x: x + l, y: i * fit.pitch, w: r - l, h: fit.pitch };
+        // Map through the widen scale, which is anchored at the Line's right edge (W).
+        return { x: W - (W - (x + l)) * sx, y: i * fit.pitch, w: (r - l) * sx, h: fit.pitch };
       });
-      return { p, x, lw, boxes };
+      return { p, x, lw, sx, boxes };
     });
     const lh = lines[0].p.getHeight();
     const stats = {
       ...fit,
       ...gapStats(gaps, justified, space),
       overflow: gaps.some((g) => g < 0),
+      sxMax: Math.max(...lines.map((l) => l.sx)),
       buildMs: now() - t0,
     };
     return { units, lines, lh, stats };
@@ -86,7 +91,10 @@ export function VariantB({ page, W, H, font, fontMgr, rule, stretch, showBoxes, 
         )}
         {lines.map((l, i) => (
           // Stretch around the Line's vertical centre.
-          <Group key={i} origin={{ x: 0, y: (i + 0.5) * stats.pitch }} transform={[{ scaleY: stretch }]}>
+          <Group
+            key={i}
+            origin={{ x: W, y: (i + 0.5) * stats.pitch }}
+            transform={[{ scaleX: l.sx }, { scaleY: stretch }]}>
             <Paragraph paragraph={l.p} x={l.x} y={i * stats.pitch + (stats.pitch - lh) / 2} width={l.lw} />
           </Group>
         ))}
