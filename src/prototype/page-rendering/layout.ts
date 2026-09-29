@@ -4,6 +4,14 @@ import { LINES_PER_PAGE } from './data';
 /** Wall clock for build timings (wrapped so render-time timing reads as intentional). */
 export const now = () => performance.now();
 
+/** How the Page size is chosen. minGap = smallest inter-word gap as a fraction of a normal space. */
+export type FitRule = { minGap: number; ink: boolean };
+/**
+ * Ink height of the QUL Indopak Nastaleeq builds in em (-0.45..1.18), measured offline with HarfBuzz over
+ * page 400. The font's own line height is 2.11 em, so fitting by it wastes ~30% of each Line's pitch.
+ */
+export const INK_EM = 1.63;
+
 export type Box = { x: number; y: number; w: number; h: number };
 export type Fit = {
   size: number;
@@ -16,7 +24,7 @@ export type Stats = Fit & { buildMs: number; gapMin: number; gapMax: number; ove
 
 /**
  * One font size for the whole Page: the largest size at which every Line fits W with at least
- * a normal space between words, and the font's line height fits H/16 (or 1.35x that when tight).
+ * minGap × a normal space between words, and the ink (or the font's line height) fits H/16.
  */
 export function fitPage(
   widths100: number[][],
@@ -24,15 +32,15 @@ export function fitPage(
   lineHeight100: number,
   W: number,
   H: number,
-  tight: boolean,
+  rule: FitRule,
 ): Fit {
   let widthSize = Infinity;
   for (const ws of widths100) {
-    const natural = ws.reduce((a, b) => a + b, 0) + space100 * (ws.length - 1);
+    const natural = ws.reduce((a, b) => a + b, 0) + rule.minGap * space100 * (ws.length - 1);
     widthSize = Math.min(widthSize, (W * 100) / natural);
   }
   const pitch = H / LINES_PER_PAGE;
-  const heightSize = ((pitch * 100) / lineHeight100) * (tight ? 1.35 : 1);
+  const heightSize = rule.ink ? pitch / INK_EM : (pitch * 100) / lineHeight100;
   const size = Math.floor(Math.min(widthSize, heightSize) * 10) / 10;
   return { size, widthSize, heightSize, bind: widthSize <= heightSize ? 'width' : 'height', pitch };
 }

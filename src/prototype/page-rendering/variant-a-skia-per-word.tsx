@@ -33,14 +33,14 @@ export const spaceWidth = (fontMgr: SkTypefaceFontProvider, font: string, size: 
   makePara(fontMgr, font, 'ا ا', size).getMaxIntrinsicWidth() -
   makePara(fontMgr, font, 'اا', size).getMaxIntrinsicWidth();
 
-export function VariantA({ page, W, H, font, fontMgr, tight, showBoxes, selected, onSelect, onStats }: VariantProps) {
+export function VariantA({ page, W, H, font, fontMgr, rule, showBoxes, selected, onSelect, onStats }: VariantProps) {
   const built = useMemo(() => {
     const t0 = now();
     const units = page.lines.map(lineUnits);
     const justified = page.lines.map(isJustified);
     const widths100 = units.map((us) => us.map((u) => makePara(fontMgr, font, u.text, 100).getMaxIntrinsicWidth()));
     const lh100 = makePara(fontMgr, font, units[0][0].text, 100).getHeight();
-    const fit = fitPage(widths100, spaceWidth(fontMgr, font, 100), lh100, W, H, tight);
+    const fit = fitPage(widths100, spaceWidth(fontMgr, font, 100), lh100, W, H, rule);
     const paras = units.map((us) => us.map((u) => makePara(fontMgr, font, u.text, fit.size)));
     const widths = paras.map((ps) => ps.map((p) => p.getMaxIntrinsicWidth()));
     const space = spaceWidth(fontMgr, font, fit.size);
@@ -53,7 +53,7 @@ export function VariantA({ page, W, H, font, fontMgr, tight, showBoxes, selected
       buildMs: now() - t0,
     };
     return { units, paras, boxes, lh, stats };
-  }, [page, W, H, font, fontMgr, tight]);
+  }, [page, W, H, font, fontMgr, rule]);
 
   useEffect(() => onStats(page.page, built.stats), [built, onStats, page.page]);
 

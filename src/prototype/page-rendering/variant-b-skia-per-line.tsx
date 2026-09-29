@@ -8,16 +8,19 @@ import { fitPage, gapStats, hit, now, type Box } from './layout';
 import type { VariantProps } from './types';
 import { makePara, spaceWidth } from './variant-a-skia-per-word';
 
-export function VariantB({ page, W, H, font, fontMgr, tight, showBoxes, selected, onSelect, onStats }: VariantProps) {
+export function VariantB({ page, W, H, font, fontMgr, rule, showBoxes, selected, onSelect, onStats }: VariantProps) {
   const built = useMemo(() => {
     const t0 = now();
     const units = page.lines.map(lineUnits);
     const justified = page.lines.map(isJustified);
     const texts = units.map((us) => us.map((u) => u.text).join(' '));
-    // Fit uses whole-Line natural widths (split into one "word" so fitPage adds no extra spaces).
-    const lines100 = texts.map((t) => [makePara(fontMgr, font, t, 100).getMaxIntrinsicWidth()]);
+    // Fit uses whole-Line natural widths (as one "word" so fitPage adds no spaces), shrunk to minGap spaces.
+    const space100 = spaceWidth(fontMgr, font, 100);
+    const lines100 = texts.map((t) => [
+      makePara(fontMgr, font, t, 100).getMaxIntrinsicWidth() - (1 - rule.minGap) * space100 * (t.split(' ').length - 1),
+    ]);
     const lh100 = makePara(fontMgr, font, texts[0], 100).getHeight();
-    const fit = fitPage(lines100, 0, lh100, W, H, tight);
+    const fit = fitPage(lines100, 0, lh100, W, H, rule);
     const space = spaceWidth(fontMgr, font, fit.size);
     const gaps: number[] = [];
     const lines = texts.map((t, i) => {
@@ -50,7 +53,7 @@ export function VariantB({ page, W, H, font, fontMgr, tight, showBoxes, selected
       buildMs: now() - t0,
     };
     return { units, lines, lh, stats };
-  }, [page, W, H, font, fontMgr, tight]);
+  }, [page, W, H, font, fontMgr, rule]);
 
   useEffect(() => onStats(page.page, built.stats), [built, onStats, page.page]);
 

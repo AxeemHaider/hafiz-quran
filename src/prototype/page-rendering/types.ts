@@ -2,7 +2,7 @@
 import type { SkTypefaceFontProvider } from '@shopify/react-native-skia';
 
 import type { FontName, Page, Unit } from './data';
-import type { Stats } from './layout';
+import type { FitRule, Stats } from './layout';
 
 export type VariantProps = {
   page: Page;
@@ -10,7 +10,7 @@ export type VariantProps = {
   H: number;
   font: FontName;
   fontMgr: SkTypefaceFontProvider;
-  tight: boolean;
+  rule: FitRule;
   showBoxes: boolean;
   selected: string | null;
   onSelect: (u: Unit | null) => void;

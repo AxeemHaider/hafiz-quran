@@ -11,11 +11,11 @@ type Measured = { widths: number[][]; space: number; lh: number };
 
 // Remount per input so measurement state starts fresh (no reset effects).
 export function VariantC(props: VariantProps) {
-  const { page, font, W, H, tight } = props;
-  return <Inner key={`${page.page}-${font}-${W}-${H}-${tight}`} {...props} />;
+  const { page, font, W, H, rule } = props;
+  return <Inner key={`${page.page}-${font}-${W}-${H}-${rule.minGap}-${rule.ink}`} {...props} />;
 }
 
-function Inner({ page, W, H, font, tight, showBoxes, selected, onSelect, onStats }: VariantProps) {
+function Inner({ page, W, H, font, rule, showBoxes, selected, onSelect, onStats }: VariantProps) {
   const units = useMemo(() => page.lines.map(lineUnits), [page]);
   const justified = useMemo(() => page.lines.map(isJustified), [page]);
   const [m, setM] = useState<Measured | null>(null);
@@ -34,7 +34,7 @@ function Inner({ page, W, H, font, tight, showBoxes, selected, onSelect, onStats
     });
   };
 
-  const fit = m ? fitPage(m.widths, m.space, m.lh, W, H, tight) : null;
+  const fit = m ? fitPage(m.widths, m.space, m.lh, W, H, rule) : null;
 
   // Actual gaps at the final size, from each word's onLayout x.
   const placed = useRef(new Map<string, { x: number; w: number }>());

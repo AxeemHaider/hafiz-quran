@@ -3,7 +3,7 @@
 import { useFonts as useSkiaFonts } from '@shopify/react-native-skia';
 import { useFonts } from 'expo-font';
 import { useIsFocused, useLocalSearchParams } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { FlatList, Image, Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -40,7 +40,9 @@ export default function PrototypePageRendering() {
 
   const [font, setFont] = useState<FontName>('HanafiNormal');
   const [preset, setPreset] = useState<Preset>('device');
-  const [tight, setTight] = useState(false);
+  const [minGap, setMinGap] = useState(0.25);
+  const [ink, setInk] = useState(true);
+  const rule = useMemo(() => ({ minGap, ink }), [minGap, ink]);
   const [showBoxes, setShowBoxes] = useState(false);
   const [reference, setReference] = useState(false);
   const [hud, setHud] = useState(true);
@@ -97,7 +99,7 @@ export default function PrototypePageRendering() {
                       H={H}
                       font={font}
                       fontMgr={fontMgr}
-                      tight={tight}
+                      rule={rule}
                       showBoxes={showBoxes}
                       selected={selected?.key ?? null}
                       onSelect={setSelected}
@@ -117,7 +119,8 @@ export default function PrototypePageRendering() {
             <View style={styles.row}>
               <Chip label={font.replace('Hanafi', '')} onPress={() => setFont(cycle(FONT_NAMES, font))} />
               <Chip label={preset} onPress={() => setPreset(cycle(Object.keys(PRESETS) as Preset[], preset))} />
-              <Chip label={tight ? 'tight' : 'loose'} onPress={() => setTight(!tight)} />
+              <Chip label={`gap ≥${minGap}×`} onPress={() => setMinGap(cycle([1, 0.5, 0.25, 0], minGap))} />
+              <Chip label={ink ? 'fit ink' : 'fit line-height'} onPress={() => setInk(!ink)} />
               <Chip label={showBoxes ? 'boxes' : 'no boxes'} onPress={() => setShowBoxes(!showBoxes)} />
               <Chip label={reference ? 'REF' : 'ref'} onPress={() => setReference(!reference)} />
               <Chip label="✕" onPress={() => setHud(false)} />
