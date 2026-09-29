@@ -43,6 +43,7 @@ export default function PrototypePageRendering() {
   const [minGap, setMinGap] = useState(0.25);
   const [ink, setInk] = useState(true);
   const rule = useMemo(() => ({ minGap, ink }), [minGap, ink]);
+  const [stretch, setStretch] = useState(1.3);
   const [showBoxes, setShowBoxes] = useState(false);
   const [reference, setReference] = useState(false);
   const [hud, setHud] = useState(true);
@@ -104,6 +105,7 @@ export default function PrototypePageRendering() {
                       font={font}
                       fontMgr={fontMgr}
                       rule={rule}
+                      stretch={stretch}
                       showBoxes={showBoxes}
                       selected={selected?.key ?? null}
                       onSelect={setSelected}
@@ -125,6 +127,7 @@ export default function PrototypePageRendering() {
               <Chip label={font.replace('Hanafi', '')} onPress={() => setFont(cycle(FONT_NAMES, font))} />
               <Chip label={preset} onPress={() => setPreset(cycle(Object.keys(PRESETS) as Preset[], preset))} />
               <Chip label={`gap ≥${minGap}×`} onPress={() => setMinGap(cycle([1, 0.5, 0.25, 0], minGap))} />
+              <Chip label={`stretch ${stretch}×`} onPress={() => setStretch(cycle([1, 1.2, 1.3, 1.4, 1.6], stretch))} />
               <Chip label={ink ? 'fit ink' : 'fit line-height'} onPress={() => setInk(!ink)} />
               <Chip label={showBoxes ? 'boxes' : 'no boxes'} onPress={() => setShowBoxes(!showBoxes)} />
               <Chip label={reference ? 'REF' : 'ref'} onPress={() => setReference(!reference)} />

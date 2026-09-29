@@ -1,5 +1,5 @@
 // PROTOTYPE (ticket #6). Variant B: Skia, one Canvas per Page, one Paragraph per Line, slack via wordSpacing.
-import { Canvas, Paragraph, Rect } from '@shopify/react-native-skia';
+import { Canvas, Group, Paragraph, Rect } from '@shopify/react-native-skia';
 import { useEffect, useMemo } from 'react';
 import { Pressable } from 'react-native';
 
@@ -8,7 +8,7 @@ import { fitPage, gapStats, hit, now, type Box } from './layout';
 import type { VariantProps } from './types';
 import { makePara, spaceWidth } from './variant-a-skia-per-word';
 
-export function VariantB({ page, W, H, font, fontMgr, rule, showBoxes, selected, onSelect, onStats }: VariantProps) {
+export function VariantB({ page, W, H, font, fontMgr, rule, stretch, showBoxes, selected, onSelect, onStats }: VariantProps) {
   const built = useMemo(() => {
     const t0 = now();
     const units = page.lines.map(lineUnits);
@@ -85,13 +85,10 @@ export function VariantB({ page, W, H, font, fontMgr, rule, showBoxes, selected,
           }),
         )}
         {lines.map((l, i) => (
-          <Paragraph
-            key={i}
-            paragraph={l.p}
-            x={l.x}
-            y={i * stats.pitch + (stats.pitch - lh) / 2}
-            width={l.lw}
-          />
+          // Stretch around the Line's vertical centre.
+          <Group key={i} origin={{ x: 0, y: (i + 0.5) * stats.pitch }} transform={[{ scaleY: stretch }]}>
+            <Paragraph paragraph={l.p} x={l.x} y={i * stats.pitch + (stats.pitch - lh) / 2} width={l.lw} />
+          </Group>
         ))}
       </Canvas>
     </Pressable>

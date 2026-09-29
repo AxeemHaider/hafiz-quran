@@ -15,7 +15,7 @@ export function VariantC(props: VariantProps) {
   return <Inner key={`${page.page}-${font}-${W}-${H}-${rule.minGap}-${rule.ink}`} {...props} />;
 }
 
-function Inner({ page, W, H, font, rule, showBoxes, selected, onSelect, onStats }: VariantProps) {
+function Inner({ page, W, H, font, rule, stretch, showBoxes, selected, onSelect, onStats }: VariantProps) {
   const units = useMemo(() => page.lines.map(lineUnits), [page]);
   const justified = useMemo(() => page.lines.map(isJustified), [page]);
   const [m, setM] = useState<Measured | null>(null);
@@ -101,7 +101,7 @@ function Inner({ page, W, H, font, rule, showBoxes, selected, onSelect, onStats 
                 style={[
                   fam,
                   styles.word,
-                  { fontSize: fit.size },
+                  { fontSize: fit.size, transform: [{ scaleY: stretch }] },
                   u.key === selected && styles.selected,
                   showBoxes && styles.box,
                 ]}>

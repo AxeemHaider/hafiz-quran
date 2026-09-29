@@ -11,6 +11,8 @@ export type VariantProps = {
   font: FontName;
   fontMgr: SkTypefaceFontProvider;
   rule: FitRule;
+  /** Vertical stretch of every word (1 = font as designed). Width is unchanged, so Lines still fit. */
+  stretch: number;
   showBoxes: boolean;
   selected: string | null;
   onSelect: (u: Unit | null) => void;

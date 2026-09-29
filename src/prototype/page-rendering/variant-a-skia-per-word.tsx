@@ -1,6 +1,7 @@
 // PROTOTYPE (ticket #6). Variant A: Skia, one Canvas per Page, one Paragraph per word.
 import {
   Canvas,
+  Group,
   Paragraph,
   Rect,
   Skia,
@@ -33,7 +34,7 @@ export const spaceWidth = (fontMgr: SkTypefaceFontProvider, font: string, size: 
   makePara(fontMgr, font, 'ا ا', size).getMaxIntrinsicWidth() -
   makePara(fontMgr, font, 'اا', size).getMaxIntrinsicWidth();
 
-export function VariantA({ page, W, H, font, fontMgr, rule, showBoxes, selected, onSelect, onStats }: VariantProps) {
+export function VariantA({ page, W, H, font, fontMgr, rule, stretch, showBoxes, selected, onSelect, onStats }: VariantProps) {
   const built = useMemo(() => {
     const t0 = now();
     const units = page.lines.map(lineUnits);
@@ -82,14 +83,16 @@ export function VariantA({ page, W, H, font, fontMgr, rule, showBoxes, selected,
                   strokeWidth={0.5}
                 />
               ) : null,
-              <Paragraph
-                key={u.key}
-                paragraph={paras[i][j]}
-                // RTL paragraphs right-align inside their layout width; pin the right edge to the box.
-                x={b.x + b.w - (Math.ceil(b.w) + 2)}
-                y={b.y + (stats.pitch - lh) / 2}
-                width={Math.ceil(b.w) + 2}
-              />,
+              // Stretch around the Line's vertical centre.
+              <Group key={u.key} origin={{ x: 0, y: b.y + stats.pitch / 2 }} transform={[{ scaleY: stretch }]}>
+                <Paragraph
+                  paragraph={paras[i][j]}
+                  // RTL paragraphs right-align inside their layout width; pin the right edge to the box.
+                  x={b.x + b.w - (Math.ceil(b.w) + 2)}
+                  y={b.y + (stats.pitch - lh) / 2}
+                  width={Math.ceil(b.w) + 2}
+                />
+              </Group>,
             ];
           }),
         )}
