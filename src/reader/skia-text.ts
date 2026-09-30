@@ -5,7 +5,7 @@ import type { Measure } from '@/layout';
 /** The one family name the Mushaf font is registered under. Nothing depends on which font it is. */
 export const MUSHAF_FONT_FAMILY = 'MushafFont';
 
-const INK_COLOR = '#1a1a1a';
+export const INK_COLOR = '#1a1a1a';
 /** Lay out on one line, far wider than any word. */
 const UNBOUNDED_WIDTH = 1e5;
 

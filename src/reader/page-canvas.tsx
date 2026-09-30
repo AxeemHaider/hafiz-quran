@@ -1,12 +1,17 @@
 import { Canvas, Group, Paragraph, type SkTypefaceFontProvider } from '@shopify/react-native-skia';
 import { useEffect, useMemo } from 'react';
 
+import { lineRuleYs, type FrameGeometry, type PageHeader } from '@/frame/page-frame';
 import type { PageLayout } from '@/layout';
 
+import { FrameDrawing } from './frame-drawing';
 import { makeWordParagraph } from './skia-text';
 
 type Props = {
+  /** The Page's Lines, laid out in the frame's text area (text-area coordinates). */
   layout: PageLayout;
+  frame: FrameGeometry;
+  header: PageHeader;
   fontMgr: SkTypefaceFontProvider;
   width: number;
   height: number;
@@ -18,11 +23,12 @@ type Props = {
 const WIDTH_SLACK = 2;
 
 /**
- * Draws a PageLayout: each word as its own RTL Paragraph where the layout put it. No layout logic here.
+ * Draws a Page: its Page Frame, then its PageLayout inside the frame's text area. Each word is its own
+ * RTL Paragraph where the layout put it: each word as its own RTL Paragraph where the layout put it. No layout logic here.
  * An RTL Paragraph right-aligns inside its layout width, so each word's right edge is pinned to the
  * layout's anchor; it is then widened leftward by the Line's scale and stretched around the Line centre.
  */
-export function PageCanvas({ layout, fontMgr, width, height, inkCenterEm }: Props) {
+export function PageCanvas({ layout, frame, header, fontMgr, width, height, inkCenterEm }: Props) {
   const words = useMemo(
     () =>
       layout.lines.flatMap((line) =>
@@ -48,11 +54,20 @@ export function PageCanvas({ layout, fontMgr, width, height, inkCenterEm }: Prop
 
   return (
     <Canvas style={{ width, height }}>
-      {words.map((w) => (
-        <Group key={w.key} origin={w.origin} transform={w.transform}>
-          <Paragraph paragraph={w.paragraph} x={w.x} y={w.y} width={w.width} />
-        </Group>
-      ))}
+      <FrameDrawing
+        frame={frame}
+        header={header}
+        lineRuleYs={lineRuleYs(layout)}
+        fontMgr={fontMgr}
+        inkCenterEm={inkCenterEm}
+      />
+      <Group transform={[{ translateX: frame.textArea.x }, { translateY: frame.textArea.y }]}>
+        {words.map((w) => (
+          <Group key={w.key} origin={w.origin} transform={w.transform}>
+            <Paragraph paragraph={w.paragraph} x={w.x} y={w.y} width={w.width} />
+          </Group>
+        ))}
+      </Group>
     </Canvas>
   );
 }
