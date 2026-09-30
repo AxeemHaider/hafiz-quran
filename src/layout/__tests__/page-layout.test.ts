@@ -1,4 +1,4 @@
-import { DEFAULT_TUNING, layoutPage, type Line, type Measure, type Page } from '@/layout';
+import { DEFAULT_TUNING, isJustified, layoutPage, type Line, type Measure, type Page } from '@/layout';
 
 /** Fake measurer: every character is half an em wide. */
 const measure: Measure = (text, fontSize) => text.length * 0.5 * fontSize;
@@ -158,5 +158,15 @@ describe('layoutPage', () => {
       );
     expect(xs(1)).toEqual(xs(1.3));
     expect(xs(1)).toEqual(xs(2));
+  });
+});
+
+describe('isJustified', () => {
+  test('only a non-centred ayah Line of more than one word is justified', () => {
+    expect(isJustified({ type: 'ayah', centered: false, wordCount: 2 })).toBe(true);
+    expect(isJustified({ type: 'ayah', centered: false, wordCount: 1 })).toBe(false);
+    expect(isJustified({ type: 'ayah', centered: true, wordCount: 5 })).toBe(false);
+    expect(isJustified({ type: 'basmallah', centered: false, wordCount: 4 })).toBe(false);
+    expect(isJustified({ type: 'surah_name', centered: false, wordCount: 2 })).toBe(false);
   });
 });

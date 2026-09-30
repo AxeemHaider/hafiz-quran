@@ -47,8 +47,15 @@ export type PageLayoutInput = {
   tuning: Tuning;
 };
 
-/** A justified Line runs edge to edge; every other Line is centred at its natural width. */
-const isJustified = (line: Line) => line.type === 'ayah' && !line.centered && line.words.length > 1;
+/**
+ * A justified Line runs edge to edge; every other Line is centred at its natural width. The one rule
+ * for it, shared with the Mushaf-wide size data (`readMushafInfo`), which knows only word counts.
+ */
+export const isJustified = (line: { type: LineType; centered: boolean; wordCount: number }) =>
+  line.type === 'ayah' && !line.centered && line.wordCount > 1;
+
+const isJustifiedLine = (line: Line) =>
+  isJustified({ type: line.type, centered: line.centered, wordCount: line.words.length });
 
 /** Sub-pixel slack for float error when checking whether a Line fits. */
 const FIT_EPSILON = 1e-6;
@@ -65,7 +72,7 @@ function naturalWidth(line: Line, measure: Measure, fontSize: number, wordGapEm:
  * width. Re-measures after each step, because a device shaper's widths aren't exactly linear in size.
  */
 function pageFontSize(page: Page, measure: Measure, width: number, fontSize: number, wordGapEm: number) {
-  const justified = page.lines.filter(isJustified);
+  const justified = page.lines.filter(isJustifiedLine);
   let size = fontSize;
   for (let step = 0; step < MAX_SHRINK_STEPS; step++) {
     const widest = Math.max(0, ...justified.map((l) => naturalWidth(l, measure, size, wordGapEm)));
@@ -90,7 +97,7 @@ export function layoutPage({ page, linesPerPage, measure, textArea, fontSize: mu
       const sum = widths.reduce((a, b) => a + b, 0);
       const gaps = gap * (line.words.length - 1);
       const fill = (textArea.width - gaps) / sum;
-      const scaleX = isJustified(line) ? fill : Math.min(1, fill);
+      const scaleX = isJustifiedLine(line) ? fill : Math.min(1, fill);
       let x = (textArea.width + sum * scaleX + gaps) / 2;
       return {
         lineNumber: line.lineNumber,

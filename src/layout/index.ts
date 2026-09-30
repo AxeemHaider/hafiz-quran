@@ -1,6 +1,6 @@
 export { mushafFontSize } from './mushaf-font-size';
 export type { MushafFontSizeInput } from './mushaf-font-size';
-export { layoutPage } from './page-layout';
+export { isJustified, layoutPage } from './page-layout';
 export type { PageLayout, PageLayoutInput, PlacedLine, PlacedWord } from './page-layout';
 export { DEFAULT_TUNING } from './tuning';
 export type { Tuning } from './tuning';

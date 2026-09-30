@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-import type { Line, LineType, Page } from '@/layout';
+import { isJustified, type Line, type LineType, type Page } from '@/layout';
 
 import { withSpecialLineContent } from './special-lines';
 
@@ -29,17 +29,20 @@ type InfoRow = {
   ink_height_em: number;
 };
 type LineRow = { line_number: number; line_type: LineType; is_centered: number; surah_number: number | null };
+type SizeLineRow = { page_number: number; line_type: LineType; is_centered: number; word_count: number; width_em: number };
 type WordRow = { id: number; line_number: number; location: string; text: string };
 
 export function readMushafInfo(db: SQLiteDatabase): MushafInfo {
   const info = db.getFirstSync<InfoRow>('select * from mushaf');
   if (!info) throw new Error('Mushaf database has no mushaf row; re-run data prep');
-  // Same rule as the layout's justified Line: a non-centred `ayah` Line of more than one word.
-  const longest = db.getAllSync<{ em: number }>(
-    `select max(width_em) as em from lines
-     where line_type = 'ayah' and is_centered = 0 and word_count > 1
-     group by page_number`,
+  const lineRows = db.getAllSync<SizeLineRow>(
+    'select page_number, line_type, is_centered, word_count, width_em from lines order by page_number',
   );
+  const longestByPage = new Map<number, number>();
+  for (const r of lineRows) {
+    if (!isJustified({ type: r.line_type, centered: r.is_centered === 1, wordCount: r.word_count })) continue;
+    longestByPage.set(r.page_number, Math.max(longestByPage.get(r.page_number) ?? 0, r.width_em));
+  }
   return {
     name: info.name,
     pageCount: info.number_of_pages,
@@ -47,7 +50,7 @@ export function readMushafInfo(db: SQLiteDatabase): MushafInfo {
     inkTopEm: info.ink_top_em,
     inkBottomEm: info.ink_bottom_em,
     inkHeightEm: info.ink_height_em,
-    longestLineEmByPage: longest.map((r) => r.em),
+    longestLineEmByPage: [...longestByPage.values()],
   };
 }
 
