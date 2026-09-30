@@ -32,7 +32,14 @@ type InfoRow = {
 };
 type LineRow = { line_number: number; line_type: LineType; is_centered: number; surah_number: number | null };
 type SizeLineRow = { page_number: number; line_type: LineType; is_centered: number; word_count: number; width_em: number };
-type WordRow = { id: number; line_number: number; location: string; text: string };
+type WordRow = {
+  id: number;
+  line_number: number;
+  location: string;
+  text: string;
+  ink_left_em: number;
+  ink_right_em: number;
+};
 
 export function readMushafInfo(db: SQLiteDatabase): MushafInfo {
   const info = db.getFirstSync<InfoRow>('select * from mushaf');
@@ -64,7 +71,7 @@ export function readPage(db: SQLiteDatabase, layoutPageNumber: number): Page {
     layoutPageNumber,
   );
   const wordRows = db.getAllSync<WordRow>(
-    'select id, line_number, location, text from words where page_number = ? order by line_number, position',
+    'select id, line_number, location, text, ink_left_em, ink_right_em from words where page_number = ? order by line_number, position',
     layoutPageNumber,
   );
   const lines: Line[] = lineRows.map((r) => ({
@@ -75,6 +82,12 @@ export function readPage(db: SQLiteDatabase, layoutPageNumber: number): Page {
     words: [],
   }));
   const byNumber = new Map(lines.map((l) => [l.lineNumber, l]));
-  for (const w of wordRows) byNumber.get(w.line_number)?.words.push({ id: w.id, location: w.location, text: w.text });
+  for (const w of wordRows)
+    byNumber.get(w.line_number)?.words.push({
+      id: w.id,
+      location: w.location,
+      text: w.text,
+      inkOverhangEm: { left: w.ink_left_em, right: w.ink_right_em },
+    });
   return withSpecialLineContent({ layoutPageNumber, lines });
 }

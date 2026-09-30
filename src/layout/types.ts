@@ -1,5 +1,16 @@
 export type LineType = 'ayah' | 'surah_name' | 'basmallah';
-export type Word = { id: number; location: string; text: string };
+/** How far a word's ink reaches past its advance width on each side, in em. */
+export type InkOverhang = { left: number; right: number };
+export type Word = {
+  id: number;
+  location: string;
+  text: string;
+  /**
+   * Ink past the advance, from data prep; none if absent. Waqf marks after a space hang up to ~0.4 em
+   * left of the advance (`عَلَیْهِمْ ۙ۬ۦ`), so the word's box must include them.
+   */
+  inkOverhangEm?: InkOverhang;
+};
 export type Line = {
   lineNumber: number;
   type: LineType;

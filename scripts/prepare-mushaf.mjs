@@ -15,8 +15,11 @@
 // Fails loudly, writing nothing, if the data is wrong. Output schema:
 //   mushaf(name, number_of_pages, lines_per_page, font_name, ink_top_em, ink_bottom_em, ink_height_em)
 //   lines(page_number, line_number, line_type, is_centered, surah_number, first_word_id,
-//         last_word_id, word_count, width_em)   -- one row per Line; width_em only for 'ayah' Lines
-//   words(id, page_number, line_number, position, location, text)   -- 'ayah' Line words, in order
+//         last_word_id, word_count, width_em)   -- one row per Line; width_em only for 'ayah' Lines,
+//                                                  the sum of its words' advances and ink overhangs
+//   words(id, page_number, line_number, position, location, text, ink_left_em, ink_right_em)
+//         -- 'ayah' Line words, in order; ink_*_em is how far the word's ink reaches past its
+//            advance on that side (>= 0), e.g. waqf marks after a space hang up to ~0.4 em left
 import * as hb from 'harfbuzzjs';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
@@ -122,32 +125,63 @@ function validate(info, lines, words) {
   return problems;
 }
 
-/** Shapes words with HarfBuzz: advance width and ink extent in em. */
+/**
+ * Private Use Area codepoints (the ayah numbers, some waqf signs) are strong left-to-right, so the
+ * device's Paragraph shapes them as their own LTR run inside the RTL word. Shaping the word as one RTL
+ * buffer would reverse them and misplace their marks.
+ */
+const PUA_RUNS = /([\uE000-\uF8FF]+)/u;
+
+/**
+ * Shapes words with HarfBuzz the way a Skia Paragraph does (runs split at PUA text, in RTL visual
+ * order): advance width, ink top/bottom, and how far the ink reaches past the advance on the left
+ * and right (>= 0), all in em. Waqf marks after a space hang left of the advance (`عَلَیْهِمْ ۙ۬ۦ`).
+ */
 function makeShaper(fontBytes) {
   const face = new hb.Face(new hb.Blob(fontBytes));
   const font = new hb.Font(face);
   const upem = face.upem;
   const extents = new Map();
-  return (text) => {
+  const shapeRun = (text, ltr) => {
     const buf = new hb.Buffer();
     buf.addText(text);
     buf.guessSegmentProperties();
+    if (ltr) buf.setDirection(hb.Direction.LTR);
     hb.shape(font, buf);
-    const infos = buf.getGlyphInfos();
     const positions = buf.getGlyphPositions();
+    return buf.getGlyphInfos().map((g, i) => ({ glyph: g.codepoint, ...positions[i] }));
+  };
+  return (text) => {
+    // Logical runs, laid out right to left: the visual order is the reverse.
+    const glyphs = text
+      .split(PUA_RUNS)
+      .map((run, i) => (run ? shapeRun(run, i % 2 === 1) : []))
+      .reverse()
+      .flat();
     let advance = 0;
     let top = -Infinity;
     let bottom = Infinity;
-    infos.forEach((g, i) => {
-      const p = positions[i];
-      advance += p.xAdvance;
-      if (!extents.has(g.codepoint)) extents.set(g.codepoint, font.glyphExtents(g.codepoint));
-      const e = extents.get(g.codepoint);
-      if (!e || e.height === 0) return;
-      top = Math.max(top, p.yOffset + e.yBearing);
-      bottom = Math.min(bottom, p.yOffset + e.yBearing + e.height);
-    });
-    return { width: advance / upem, top: top / upem, bottom: bottom / upem };
+    let left = 0;
+    let right = 0;
+    for (const g of glyphs) {
+      if (!extents.has(g.glyph)) extents.set(g.glyph, font.glyphExtents(g.glyph));
+      const e = extents.get(g.glyph);
+      if (e && e.height !== 0) {
+        top = Math.max(top, g.yOffset + e.yBearing);
+        bottom = Math.min(bottom, g.yOffset + e.yBearing + e.height);
+        const x = advance + g.xOffset + e.xBearing;
+        left = Math.min(left, x, x + e.width);
+        right = Math.max(right, x, x + e.width);
+      }
+      advance += g.xAdvance;
+    }
+    return {
+      width: advance / upem,
+      top: top / upem,
+      bottom: bottom / upem,
+      inkLeft: -left / upem,
+      inkRight: Math.max(0, right - advance) / upem,
+    };
   };
 }
 
@@ -169,10 +203,10 @@ function writeDatabase(file, info, lines, words, shape) {
       primary key (page_number, line_number));
     create table words (id integer primary key, page_number integer not null,
       line_number integer not null, position integer not null, location text not null,
-      text text not null);
+      text text not null, ink_left_em real not null, ink_right_em real not null);
     create index words_by_line on words (page_number, line_number, position);`);
   const insertLine = db.prepare('insert into lines values (?, ?, ?, ?, ?, ?, ?, ?, ?)');
-  const insertWord = db.prepare('insert into words values (?, ?, ?, ?, ?, ?)');
+  const insertWord = db.prepare('insert into words values (?, ?, ?, ?, ?, ?, ?, ?)');
   const tops = [];
   const bottoms = [];
   db.exec('begin');
@@ -183,10 +217,10 @@ function writeDatabase(file, info, lines, words, shape) {
     for (let id = l.first_word_id; isAyah && id <= l.last_word_id; id++, count++) {
       const w = words.get(id);
       const m = shape(w.text);
-      width += m.width;
+      width += m.width + m.inkLeft + m.inkRight;
       tops.push(m.top);
       bottoms.push(m.bottom);
-      insertWord.run(id, l.page_number, l.line_number, count + 1, w.location, w.text);
+      insertWord.run(id, l.page_number, l.line_number, count + 1, w.location, w.text, m.inkLeft, m.inkRight);
     }
     insertLine.run(
       l.page_number, l.line_number, l.line_type, l.is_centered ? 1 : 0,

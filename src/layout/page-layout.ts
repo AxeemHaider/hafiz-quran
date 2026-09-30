@@ -1,5 +1,5 @@
 import type { Tuning } from './tuning';
-import type { Box, Line, LineType, Measure, Page, Size } from './types';
+import type { Box, Line, LineType, Measure, Page, Size, Word } from './types';
 
 export type PlacedWord = {
   id: number;
@@ -7,11 +7,12 @@ export type PlacedWord = {
   text: string;
   /** Hit-test box in text-area coordinates: the widened width and the full Line pitch. */
   box: Box;
-  /** Width of the word as measured at the Page's font size, before widening. */
+  /** Width of the word's text as measured at the Page's font size, before widening. */
   measuredWidth: number;
   /**
-   * The word's right edge (= box.x + box.w). The renderer lays the word out RTL at `measuredWidth`,
-   * pins its right edge here, then widens it leftward by the Line's `scaleX`.
+   * The text's right edge: the box's right edge, less the word's right ink overhang. The renderer lays
+   * the text out RTL at `measuredWidth`, pins its right edge here, then widens it leftward by the Line's
+   * `scaleX`; the ink then fills the box exactly.
    */
   anchorX: number;
 };
@@ -61,9 +62,15 @@ const isJustifiedLine = (line: Line) =>
 const FIT_EPSILON = 1e-6;
 const MAX_SHRINK_STEPS = 50;
 
-/** Width of a Line's measured words plus its gaps, at `fontSize`. */
+/** A word's width at `fontSize`: its measured text plus any ink it draws past that on either side. */
+function wordWidth(word: Word, measure: Measure, fontSize: number) {
+  const overhang = word.inkOverhangEm ? word.inkOverhangEm.left + word.inkOverhangEm.right : 0;
+  return measure(word.text, fontSize) + overhang * fontSize;
+}
+
+/** Width of a Line's words plus its gaps, at `fontSize`. */
 function naturalWidth(line: Line, measure: Measure, fontSize: number, wordGapEm: number) {
-  const words = line.words.reduce((sum, w) => sum + measure(w.text, fontSize), 0);
+  const words = line.words.reduce((sum, w) => sum + wordWidth(w, measure, fontSize), 0);
   return words + wordGapEm * fontSize * (line.words.length - 1);
 }
 
@@ -93,7 +100,7 @@ export function layoutPage({ page, linesPerPage, measure, textArea, fontSize: mu
     offsetY,
     lines: page.lines.map((line, i) => {
       const y = offsetY + i * pitch;
-      const widths = line.words.map((w) => measure(w.text, fontSize));
+      const widths = line.words.map((w) => wordWidth(w, measure, fontSize));
       const sum = widths.reduce((a, b) => a + b, 0);
       const gaps = gap * (line.words.length - 1);
       const fill = (textArea.width - gaps) / sum;
@@ -106,12 +113,12 @@ export function layoutPage({ page, linesPerPage, measure, textArea, fontSize: mu
         scaleY: tuning.verticalStretch,
         centerY: y + pitch / 2,
         words: line.words.map((word, j) => {
-          const anchorX = x;
+          const anchorX = x - (word.inkOverhangEm?.right ?? 0) * fontSize * scaleX;
           const w = widths[j] * scaleX;
           x -= w;
           const box = { x, y, w, h: pitch };
           x -= gap;
-          return { ...word, box, measuredWidth: widths[j], anchorX };
+          return { ...word, box, measuredWidth: measure(word.text, fontSize), anchorX };
         }),
       };
     }),

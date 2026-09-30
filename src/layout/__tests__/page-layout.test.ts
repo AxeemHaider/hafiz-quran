@@ -150,6 +150,31 @@ describe('layoutPage', () => {
     expect(left).toMatchObject({ measuredWidth: 20, anchorX: 100, box: { x: 0, w: 100 } });
   });
 
+  test('a word’s box holds the ink it draws past its advance, so a trailing waqf mark stays in the text area', () => {
+    // The last word ends in marks on a space (e.g. `عَلَیْهِمْ ۙ۬ۦ`), which hang 0.25 em left of its advance.
+    const [a, b] = words('aaaa', 'bb');
+    const marked = { ...b, inkOverhangEm: { left: 0.25, right: 0.05 } };
+    const layout = layoutPage({ ...base, page: page({ lineNumber: 1, type: 'ayah', centered: false, words: [a, marked] }) });
+    const line = layout.lines[0];
+    const [right, left] = line.words;
+    // Widths 40 and 20 + (0.25 + 0.05) × 20 = 26, widened to fill 300px.
+    expect(line.scaleX).toBeCloseTo(300 / 66);
+    expect(left.box.x).toBeCloseTo(0);
+    expect(right.box.x).toBeCloseTo(left.box.x + left.box.w);
+    // The text is laid out at its own width, pinned inside the box by the right overhang...
+    expect(left.measuredWidth).toBe(20);
+    expect(left.anchorX).toBeCloseTo(left.box.x + left.box.w - 0.05 * 20 * line.scaleX);
+    // ...so the left overhang ends exactly at the box's (and the text area's) left edge.
+    expect(left.anchorX - (left.measuredWidth + 0.25 * 20) * line.scaleX).toBeCloseTo(0);
+  });
+
+  test('ink overhang counts toward whether a Page’s Lines fit', () => {
+    // 40 + 40 chars at 20px = 800px, + 1 em of overhang = 820px: fits 300px at 20 × 300 / 820.
+    const [a, b] = words('a'.repeat(40), 'b'.repeat(40));
+    const line: Line = { lineNumber: 1, type: 'ayah', centered: false, words: [a, { ...b, inkOverhangEm: { left: 1, right: 0 } }] };
+    expect(layoutPage({ ...base, page: page(line) }).fontSize).toBeCloseTo((20 * 300) / 820);
+  });
+
   test('changing the vertical stretch changes no word’s x position or width', () => {
     const p = page(ayah(1, 'aaaa', 'bb', 'c'), { lineNumber: 2, type: 'basmallah', centered: true, words: words('ddd') });
     const xs = (verticalStretch: number) =>
