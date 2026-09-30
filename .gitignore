@@ -44,3 +44,6 @@ example
 
 # Claude Code agent worktrees
 /.claude/worktrees/
+
+# generated Mushaf data (QUL licences unresolved, see #8) — npm run prepare:mushaf
+/assets/generated/
