@@ -1,6 +1,11 @@
+/** How many surahs the Quran has. */
+export const SURAH_COUNT = 114;
+
 /**
  * The 114 surah names in Arabic, in Mushaf order: `SURAH_NAMES[0]` is surah 1. App-owned static data,
- * shared by `surah_name` Lines and the Page Frame header.
+ * shared by `surah_name` Lines and the Page Frame header. Checked against quran.com's `name_arabic`
+ * (API v4 chapters); where that list keeps Tanzil's spellings (ابراهيم, سبإ, الانسان, النبإ, الإنفطار,
+ * الإنشقاق) these use the common printed spelling instead.
  */
 export const SURAH_NAMES: readonly string[] = [
   'الفاتحة', 'البقرة', 'آل عمران', 'النساء', 'المائدة', 'الأنعام', 'الأعراف', 'الأنفال', 'التوبة', 'يونس',
@@ -17,9 +22,9 @@ export const SURAH_NAMES: readonly string[] = [
   'المسد', 'الإخلاص', 'الفلق', 'الناس',
 ];
 
-/** The Arabic name of surah `surah` (1..114). Throws for any other number, so bad data fails loudly. */
+/** The Arabic name of surah `surah` (1..`SURAH_COUNT`). Throws for any other number, so bad data fails loudly. */
 export function surahName(surah: number): string {
   const name = SURAH_NAMES[surah - 1];
-  if (!Number.isInteger(surah) || name === undefined) throw new Error(`No surah ${surah}; expected 1..114`);
+  if (!Number.isInteger(surah) || name === undefined) throw new Error(`No surah ${surah}; expected 1..${SURAH_COUNT}`);
   return name;
 }
