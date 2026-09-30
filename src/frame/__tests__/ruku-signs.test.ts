@@ -59,7 +59,7 @@ describe('ruku signs from the ruku metadata', () => {
 });
 
 describe('ruku sign placement in the margin column', () => {
-  const frame = frameGeometry({ w: 393, h: 759 });
+  const frame = frameGeometry({ w: 393, h: 759 }, 'right');
   const line = (lineNumber: number, centerY: number): PlacedLine => ({
     lineNumber,
     type: 'ayah',

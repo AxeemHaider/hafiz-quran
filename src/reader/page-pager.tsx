@@ -7,7 +7,7 @@ import { frameGeometry, pageHeader, type FrameGeometry } from '@/frame/page-fram
 import { rukuSignPlacements } from '@/frame/ruku-signs';
 import { DEFAULT_TUNING, layoutPage, mushafFontSize, sizeOf, type Box, type Measure, type Size } from '@/layout';
 import { readPage, readRukuSigns, type MushafInfo } from '@/mushaf/mushaf-data';
-import { printedFromLayout } from '@/mushaf/page-number';
+import { pageSide, printedFromLayout } from '@/mushaf/page-number';
 
 import { pageBox } from './page-box';
 import { PageCanvas } from './page-canvas';
@@ -31,7 +31,8 @@ const VIEWABILITY = { itemVisiblePercentThreshold: 60 };
 /**
  * A horizontal pager over all Pages in printed order: the next Page comes in from the left, as in the
  * book. Only the current Page and its neighbours are laid out and mounted; the rest are empty items.
- * The Mushaf font size is computed once per Page-box size and shared by every Page.
+ * The Mushaf font size is computed once per Page-box size and shared by every Page. Each Page gets the
+ * frame for its side of the open Mushaf, with the margin column on that side.
  */
 export function PagePager({ db, info, fontMgr, measure, size, layoutPageNumber: targetPage, onPageChange }: Props) {
   const order = useMemo(() => pagerOrder(info.pageCount, I18nManager.isRTL), [info.pageCount]);
@@ -40,18 +41,21 @@ export function PagePager({ db, info, fontMgr, measure, size, layoutPageNumber: 
   const listRef = useRef<FlatList<number>>(null);
 
   const box = pageBox(size, DEFAULT_TUNING.maxPageWidth);
-  const frame = useMemo(() => frameGeometry({ w: box.w, h: box.h }), [box.w, box.h]);
+  const frames = useMemo(
+    () => ({ right: frameGeometry({ w: box.w, h: box.h }, 'right'), left: frameGeometry({ w: box.w, h: box.h }, 'left') }),
+    [box.w, box.h],
+  );
   const fontSize = useMemo(
     () =>
       mushafFontSize({
         longestLineEmByPage: info.longestLineEmByPage,
         inkHeightEm: info.inkHeightEm,
         linesPerPage: info.linesPerPage,
-        // The Lines get what's left inside the Page Frame.
-        textArea: sizeOf(frame.textArea),
+        // The Lines get what's left inside the Page Frame; it is the same size on either side.
+        textArea: sizeOf(frames.right.textArea),
         tuning: DEFAULT_TUNING,
       }),
-    [info, frame],
+    [info, frames],
   );
 
   // Kept in refs so FlatList's onViewableItemsChanged can stay one stable function.
@@ -87,7 +91,7 @@ export function PagePager({ db, info, fontMgr, measure, size, layoutPageNumber: 
       key={size.width}
       ref={listRef}
       data={indices}
-      extraData={{ current, fontSize, box, frame }}
+      extraData={{ current, fontSize, box, frames }}
       keyExtractor={(index) => String(index)}
       horizontal
       pagingEnabled
@@ -111,7 +115,7 @@ export function PagePager({ db, info, fontMgr, measure, size, layoutPageNumber: 
                 measure={measure}
                 layoutPageNumber={page}
                 box={box}
-                frame={frame}
+                frame={frames[pageSide(printedFromLayout(page))]}
                 fontSize={fontSize}
               />
             ) : null}

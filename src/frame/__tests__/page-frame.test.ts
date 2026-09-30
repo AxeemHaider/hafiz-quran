@@ -9,7 +9,7 @@ const bottom = (b: Box) => b.y + b.h;
 
 describe('Page Frame geometry', () => {
   const phone = { w: 393, h: 759 };
-  const frame = frameGeometry(phone);
+  const frame = frameGeometry(phone, 'right');
 
   test('the text area sits inside a double-rule border, inside the Page box', () => {
     const page = { x: -1, y: -1, w: phone.w + 2, h: phone.h + 2 };
@@ -33,13 +33,26 @@ describe('Page Frame geometry', () => {
     expect(frame.marginColumn.h).toBe(frame.outerBorder.h);
   });
 
+  test('a left-hand Page mirrors it: the margin column runs down the left-hand side', () => {
+    const left = frameGeometry(phone, 'left');
+    expect(left.marginColumn.x).toBeGreaterThanOrEqual(0);
+    expect(right(left.marginColumn)).toBeLessThanOrEqual(left.outerBorder.x);
+    expect(left.marginColumn.w).toBeCloseTo(frame.marginColumn.w);
+    const mirrored = (b: Box) => phone.w - right(b);
+    for (const key of ['outerBorder', 'innerBorder', 'textArea', 'marginColumn'] as const) {
+      expect(left[key].x).toBeCloseTo(mirrored(frame[key]));
+      expect(left[key].w).toBeCloseTo(frame[key].w);
+    }
+    expect(left.header).toEqual(frame.header);
+  });
+
   test('the Lines keep most of the Page', () => {
     expect(frame.textArea.w / phone.w).toBeGreaterThan(0.8);
     expect(frame.textArea.h / phone.h).toBeGreaterThan(0.85);
   });
 
   test('every frame size is a proportion of the Page box', () => {
-    const doubled = frameGeometry({ w: phone.w * 2, h: phone.h * 2 });
+    const doubled = frameGeometry({ w: phone.w * 2, h: phone.h * 2 }, 'right');
     const twice = (b: Box) => ({ x: b.x * 2, y: b.y * 2, w: b.w * 2, h: b.h * 2 });
     for (const key of ['header', 'outerBorder', 'innerBorder', 'marginColumn', 'textArea'] as const) {
       const expected = twice(frame[key]);

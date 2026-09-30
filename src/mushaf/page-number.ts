@@ -10,3 +10,13 @@ export const layoutFromPrinted = (printedPage: number) => printedPage - PRINTED_
 
 /** The Page the app opens at: layout Page 1. */
 export const DEFAULT_PRINTED_PAGE = printedFromLayout(1);
+
+/** Which side of the open Mushaf a Page is on; its margin column is on that side too. */
+export type PageSide = 'right' | 'left';
+
+/**
+ * Al-Fatiha, the first printed Page (printed 2), is a right-hand page and the sides alternate, so even
+ * printed pages are on the right. The reference photo of printed 401 has its margin on the right
+ * anyway; the margin follows the Page's own side by choice.
+ */
+export const pageSide = (printedPage: number): PageSide => (printedPage % 2 === 0 ? 'right' : 'left');

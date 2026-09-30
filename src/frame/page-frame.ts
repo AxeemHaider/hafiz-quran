@@ -1,4 +1,5 @@
 import type { Box, Page, PageLayout } from '@/layout';
+import type { PageSide } from '@/mushaf/page-number';
 import { surahName } from '@/mushaf/surah-names';
 
 import { toUrduDigits } from './digits';
@@ -13,7 +14,7 @@ const FRAME = {
   headerHeight: 0.045,
   /** Gap between the Page edge and the outer rule (left, right, bottom), of the Page width. */
   edgeInset: 0.012,
-  /** Right-hand margin column for ruku and waqf notes, of the Page width. */
+  /** Margin column for ruku and waqf notes, on the Page's outer side, of the Page width. */
   marginColumn: 0.06,
   /** Outer (heavier) and inner rule of the double-rule border, and the rule under each Line. */
   outerRule: 0.005,
@@ -38,22 +39,30 @@ export type FrameGeometry = {
   ruleWidths: { outer: number; inner: number; line: number };
 };
 
-/** Lays the Page Frame out in a Page box of this width and height, in Page coordinates. */
-export function frameGeometry({ w: width, h: height }: Pick<Box, 'w' | 'h'>): FrameGeometry {
+/**
+ * Lays the Page Frame out in a Page box of this width and height, in Page coordinates. The margin
+ * column goes on the Page's own side (`side`), so a left-hand Page is the mirror of a right-hand one.
+ */
+export function frameGeometry({ w: width, h: height }: Pick<Box, 'w' | 'h'>, side: PageSide): FrameGeometry {
   const ofWidth = (proportion: number) => proportion * width;
   const header: Box = { x: 0, y: 0, w: width, h: FRAME.headerHeight * height };
   const edge = ofWidth(FRAME.edgeInset);
   const marginW = ofWidth(FRAME.marginColumn);
 
   const outerBorder: Box = {
-    x: edge,
+    x: side === 'right' ? edge : edge + marginW,
     y: header.h,
     w: width - 2 * edge - marginW,
     h: height - header.h - edge,
   };
   const innerBorder = inset(outerBorder, ofWidth(FRAME.ruleGap));
   const textArea = inset(innerBorder, ofWidth(FRAME.textInset));
-  const marginColumn: Box = { x: outerBorder.x + outerBorder.w, y: outerBorder.y, w: marginW, h: outerBorder.h };
+  const marginColumn: Box = {
+    x: side === 'right' ? outerBorder.x + outerBorder.w : outerBorder.x - marginW,
+    y: outerBorder.y,
+    w: marginW,
+    h: outerBorder.h,
+  };
 
   return {
     header,
