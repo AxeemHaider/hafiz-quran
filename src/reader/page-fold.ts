@@ -16,7 +16,9 @@ export type Point = { x: number; y: number };
 /** An affine map: x' = a x + b y + c, y' = d x + e y + f, as [a, b, c, d, e, f]. */
 export type Affine = [number, number, number, number, number, number];
 
-// Helpers first: worklet functions become constants when compiled, so they aren't hoisted.
+// Worklets are compiled into factories that capture what they use when the module loads, so: helpers
+// come first (they aren't hoisted), and no default parameters (they are evaluated before the captured
+// values are unpacked, so they would not exist on the UI thread).
 function keepWithin(point: Point, centre: Point, radius: number) {
   'worklet';
   const dx = point.x - centre.x;
@@ -78,9 +80,9 @@ export function dragPoint(
   dir: TurnDirection,
   cornerY: number,
   page: Size,
-  tuning = TURN_TUNING,
 ): Point {
   'worklet';
+  const tuning = TURN_TUNING;
   const travel = Math.max(0, dir * translation.x * tuning.gain);
   const lift = (cornerY === 0 ? 1 : -1) * travel * tuning.lift;
   const point = { x: travel, y: cornerY + lift + translation.y };
@@ -97,8 +99,9 @@ export function finishPoint(cornerY: number, page: Size): Point {
 }
 
 /** Whether a released drag finishes the turn: a fling along it, or far enough without a fling against it. */
-export function finishesTurn(point: Point, velocityAlongTurn: number, page: Size, tuning = TURN_TUNING): boolean {
+export function finishesTurn(point: Point, velocityAlongTurn: number, page: Size): boolean {
   'worklet';
+  const tuning = TURN_TUNING;
   if (velocityAlongTurn > tuning.flingVelocity) return true;
   if (velocityAlongTurn < -tuning.flingVelocity) return false;
   return point.x > page.width * tuning.finishAt;
