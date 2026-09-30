@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, I18nManager, StyleSheet, View, type ViewToken } from 'react-native';
 
 import { frameGeometry, pageHeader, type FrameGeometry } from '@/frame/page-frame';
-import { DEFAULT_TUNING, layoutPage, mushafFontSize, type Box, type Measure, type Size } from '@/layout';
+import { DEFAULT_TUNING, layoutPage, mushafFontSize, sizeOf, type Box, type Measure, type Size } from '@/layout';
 import { readPage, type MushafInfo } from '@/mushaf/mushaf-data';
 import { printedFromLayout } from '@/mushaf/page-number';
 
@@ -20,7 +20,7 @@ type Props = {
   /** The safe area the pager fills; each Page item is this size. */
   size: Size;
   /** The layout Page to show; changing it from outside (e.g. a deep link) turns to it. */
-  layoutPage: number;
+  layoutPageNumber: number;
   /** Called when the hafiz turns to another Page. */
   onPageChange: (layoutPage: number) => void;
 };
@@ -32,14 +32,14 @@ const VIEWABILITY = { itemVisiblePercentThreshold: 60 };
  * book. Only the current Page and its neighbours are laid out and mounted; the rest are empty items.
  * The Mushaf font size is computed once per Page-box size and shared by every Page.
  */
-export function PagePager({ db, info, fontMgr, measure, size, layoutPage: targetPage, onPageChange }: Props) {
+export function PagePager({ db, info, fontMgr, measure, size, layoutPageNumber: targetPage, onPageChange }: Props) {
   const order = useMemo(() => pagerOrder(info.pageCount, I18nManager.isRTL), [info.pageCount]);
   const indices = useMemo(() => Array.from({ length: info.pageCount }, (_, i) => i), [info.pageCount]);
   const [current, setCurrent] = useState(targetPage);
   const listRef = useRef<FlatList<number>>(null);
 
   const box = pageBox(size, DEFAULT_TUNING.maxPageWidth);
-  const frame = useMemo(() => frameGeometry({ width: box.w, height: box.h }), [box.w, box.h]);
+  const frame = useMemo(() => frameGeometry({ w: box.w, h: box.h }), [box.w, box.h]);
   const fontSize = useMemo(
     () =>
       mushafFontSize({
@@ -47,7 +47,7 @@ export function PagePager({ db, info, fontMgr, measure, size, layoutPage: target
         inkHeightEm: info.inkHeightEm,
         linesPerPage: info.linesPerPage,
         // The Lines get what's left inside the Page Frame.
-        textArea: { width: frame.textArea.w, height: frame.textArea.h },
+        textArea: sizeOf(frame.textArea),
         tuning: DEFAULT_TUNING,
       }),
     [info, frame],
@@ -121,7 +121,7 @@ export function PagePager({ db, info, fontMgr, measure, size, layoutPage: target
   );
 }
 
-type PageProps = {
+type WindowedPageProps = {
   db: SQLiteDatabase;
   info: MushafInfo;
   fontMgr: SkTypefaceFontProvider;
@@ -136,7 +136,7 @@ type PageProps = {
  * One mounted Page: read, laid out at the shared Mushaf font size in the Page Frame's text area, and
  * drawn with its frame inside its Page box.
  */
-function WindowedPage({ db, info, fontMgr, measure, layoutPageNumber, box, frame, fontSize }: PageProps) {
+function WindowedPage({ db, info, fontMgr, measure, layoutPageNumber, box, frame, fontSize }: WindowedPageProps) {
   const page = useMemo(() => readPage(db, layoutPageNumber), [db, layoutPageNumber]);
   const header = useMemo(() => pageHeader(page, printedFromLayout(layoutPageNumber)), [page, layoutPageNumber]);
   const layout = useMemo(
@@ -145,7 +145,7 @@ function WindowedPage({ db, info, fontMgr, measure, layoutPageNumber, box, frame
         page,
         linesPerPage: info.linesPerPage,
         measure,
-        textArea: { width: frame.textArea.w, height: frame.textArea.h },
+        textArea: sizeOf(frame.textArea),
         fontSize,
         tuning: DEFAULT_TUNING,
       }),
@@ -160,7 +160,7 @@ function WindowedPage({ db, info, fontMgr, measure, layoutPageNumber, box, frame
         fontMgr={fontMgr}
         width={box.w}
         height={box.h}
-        inkCenterEm={(info.inkTopEm + info.inkBottomEm) / 2}
+        inkCenterEm={info.inkCenterEm}
       />
     </View>
   );

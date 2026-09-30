@@ -25,6 +25,7 @@ import { parseArgs } from 'node:util';
 
 /** What the Taj 16-line Mushaf Layout must contain. */
 const EXPECTED = { pages: 548, firstWordId: 1, lastWordId: 83668 };
+const SURAH_COUNT = 114;
 const LINE_TYPES = new Set(['ayah', 'surah_name', 'basmallah']);
 /**
  * Ink height statistic: the 99.5th percentile of each word's ink top and the 0.5th percentile of
@@ -102,7 +103,7 @@ function validate(info, lines, words) {
     if (!(l.line_number >= 1 && l.line_number <= perPage))
       problems.push(`${at}: Line number outside 1..${perPage}`);
     if (!LINE_TYPES.has(l.line_type)) problems.push(`${at}: unknown line_type '${l.line_type}'`);
-    if (l.line_type === 'surah_name' && !(l.surah_number >= 1 && l.surah_number <= 114))
+    if (l.line_type === 'surah_name' && !(l.surah_number >= 1 && l.surah_number <= SURAH_COUNT))
       problems.push(`${at}: surah_name Line without a surah number`);
     if (l.line_type !== 'ayah') continue;
     const [first, last] = [l.first_word_id, l.last_word_id];
@@ -216,8 +217,8 @@ const ink = writeDatabase(tmp, info, lines, words, makeShaper(readFileSync(fontF
 renameSync(tmp, join(outDir, 'mushaf.db'));
 copyFileSync(fontFile, join(outDir, 'mushaf.ttf'));
 
-const f = (n) => n.toFixed(3);
+const em = (n) => n.toFixed(3);
 console.log(
   `prepare-mushaf: ${info.name}: ${lines.length} Lines on ${EXPECTED.pages} Pages, font ${basename(fontFile)}, ` +
-    `ink ${f(ink.inkBottom)}..${f(ink.inkTop)} = ${f(ink.inkTop - ink.inkBottom)} em -> ${outDir}`,
+    `ink ${em(ink.inkBottom)}..${em(ink.inkTop)} = ${em(ink.inkTop - ink.inkBottom)} em -> ${outDir}`,
 );

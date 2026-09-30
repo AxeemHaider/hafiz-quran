@@ -1,10 +1,10 @@
 import { Group, Line, Paragraph, Rect, type SkTypefaceFontProvider } from '@shopify/react-native-skia';
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 
 import type { Box } from '@/layout';
 import type { FrameGeometry, PageHeader } from '@/frame/page-frame';
 
-import { INK_COLOR, makeWordParagraph } from './skia-text';
+import { INK_COLOR, placeText, useDisposeTexts } from './skia-text';
 
 type Props = {
   frame: FrameGeometry;
@@ -18,7 +18,6 @@ type Props = {
 
 /** Header text size, as a share of the header strip's height. */
 const HEADER_TEXT = 0.7;
-const WIDTH_SLACK = 2;
 
 /**
  * Draws the Page Frame, in the same Canvas and coordinates as the Lines: the header strip (surah on
@@ -29,27 +28,17 @@ export function FrameDrawing({ frame, header, lineRuleYs, fontMgr, inkCenterEm }
   const { header: strip, innerBorder, outerBorder, marginColumn, textArea, ruleWidths } = frame;
 
   const texts = useMemo(() => {
-    const fontSize = strip.h * HEADER_TEXT;
-    const centerY = strip.y + strip.h / 2;
+    const placement = { fontSize: strip.h * HEADER_TEXT, inkCenterEm, centerY: strip.y + strip.h / 2 };
     const left = innerBorder.x;
     const right = innerBorder.x + innerBorder.w;
     const middle = outerBorder.x + outerBorder.w / 2;
-    // Each text by its right edge: a paragraph laid out RTL right-aligns inside its width.
-    const place = (text: string, rightEdge: (w: number) => number) => {
-      const paragraph = makeWordParagraph(fontMgr, text, fontSize);
-      const w = paragraph.getMaxIntrinsicWidth();
-      const width = Math.ceil(w) + WIDTH_SLACK;
-      const baseline = paragraph.getLineMetrics()[0]?.baseline ?? 0;
-      return { key: text, paragraph, x: rightEdge(w) - width, y: centerY + inkCenterEm * fontSize - baseline, width };
-    };
     return [
-      place(header.para, () => right),
-      place(header.pageNumber, (w) => middle + w / 2),
-      place(header.surah, (w) => left + w),
+      { key: 'para', ...placeText(fontMgr, header.para, { ...placement, rightEdge: right }) },
+      { key: 'page', ...placeText(fontMgr, header.pageNumber, { ...placement, rightEdge: (w) => middle + w / 2 }) },
+      { key: 'surah', ...placeText(fontMgr, header.surah, { ...placement, rightEdge: (w) => left + w }) },
     ];
   }, [fontMgr, header, strip, innerBorder, outerBorder, inkCenterEm]);
-
-  useEffect(() => () => texts.forEach((t) => t.paragraph.dispose()), [texts]);
+  useDisposeTexts(texts);
 
   return (
     <Group>

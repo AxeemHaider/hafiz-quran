@@ -1,4 +1,5 @@
 import { Skia, TextDirection, type SkParagraph, type SkTypefaceFontProvider } from '@shopify/react-native-skia';
+import { useEffect } from 'react';
 
 import type { Measure } from '@/layout';
 
@@ -8,6 +9,8 @@ export const MUSHAF_FONT_FAMILY = 'MushafFont';
 export const INK_COLOR = '#1a1a1a';
 /** Lay out on one line, far wider than any word. */
 const UNBOUNDED_WIDTH = 1e5;
+/** Slack so a text laid out at its own width never wraps. */
+const WIDTH_SLACK = 2;
 
 /** One word as its own RTL Paragraph, laid out and ready to measure or draw. */
 export function makeWordParagraph(fontMgr: SkTypefaceFontProvider, text: string, fontSize: number): SkParagraph {
@@ -37,4 +40,41 @@ export function makeSkiaMeasure(fontMgr: SkTypefaceFontProvider): Measure {
     }
     return width;
   };
+}
+
+/** A laid-out Paragraph and where to draw it: `<Paragraph x y width>`. */
+export type PlacedText = { paragraph: SkParagraph; x: number; y: number; width: number };
+
+export type TextPlacement = {
+  fontSize: number;
+  /** Middle of the font's ink above the baseline, in em; it is centred on `centerY`. */
+  inkCenterEm: number;
+  centerY: number;
+  /** Where the text's right edge goes, given its width. */
+  rightEdge: number | ((textWidth: number) => number);
+  /** The text's width, if already measured; otherwise the Paragraph's own. */
+  textWidth?: number;
+};
+
+/**
+ * One text as an RTL Paragraph, placed by its right edge and ink centre. An RTL Paragraph right-aligns
+ * inside its layout width, so its right edge lands on `rightEdge`. Dispose the Paragraph when done
+ * (`useDisposeTexts`).
+ */
+export function placeText(
+  fontMgr: SkTypefaceFontProvider,
+  text: string,
+  { fontSize, inkCenterEm, centerY, rightEdge, textWidth }: TextPlacement,
+): PlacedText {
+  const paragraph = makeWordParagraph(fontMgr, text, fontSize);
+  const measured = textWidth ?? paragraph.getMaxIntrinsicWidth();
+  const width = Math.ceil(measured) + WIDTH_SLACK;
+  const baseline = paragraph.getLineMetrics()[0]?.baseline ?? 0;
+  const right = typeof rightEdge === 'number' ? rightEdge : rightEdge(measured);
+  return { paragraph, x: right - width, y: centerY + inkCenterEm * fontSize - baseline, width };
+}
+
+/** Disposes placed texts' Paragraphs when they are replaced or unmounted. */
+export function useDisposeTexts(texts: readonly PlacedText[]) {
+  useEffect(() => () => texts.forEach((t) => t.paragraph.dispose()), [texts]);
 }

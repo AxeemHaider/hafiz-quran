@@ -16,6 +16,8 @@ export type MushafInfo = {
   inkTopEm: number;
   inkBottomEm: number;
   inkHeightEm: number;
+  /** Middle of the ink above the baseline, in em: what gets centred on each Line's centre. */
+  inkCenterEm: number;
   /** Each Page's longest justified `ayah` Line in em; Pages with none contribute nothing. */
   longestLineEmByPage: number[];
 };
@@ -50,6 +52,7 @@ export function readMushafInfo(db: SQLiteDatabase): MushafInfo {
     inkTopEm: info.ink_top_em,
     inkBottomEm: info.ink_bottom_em,
     inkHeightEm: info.ink_height_em,
+    inkCenterEm: (info.ink_top_em + info.ink_bottom_em) / 2,
     longestLineEmByPage: [...longestByPage.values()],
   };
 }

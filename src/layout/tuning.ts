@@ -1,6 +1,7 @@
 /**
- * Tuning values for the Page layout. Defaults, not rules (ADR 0001): re-tune these after a font swap.
- * No other layout code holds font-specific constants.
+ * Tuning values for the Page layout. Defaults, not rules (ADR 0001): the font-specific ones (word gap,
+ * vertical stretch, width cutoff) are re-tuned after a font swap; `maxPageWidth` is a screen-size cap
+ * that no font swap changes. No other layout code holds font-specific constants.
  */
 export type Tuning = {
   /** Gap between words, in em (fraction of the font size). */

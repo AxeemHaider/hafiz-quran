@@ -15,3 +15,6 @@ export type Measure = (text: string, fontSize: number) => number;
 
 export type Size = { width: number; height: number };
 export type Box = { x: number; y: number; w: number; h: number };
+
+/** A Box's width and height as a Size. */
+export const sizeOf = ({ w, h }: Pick<Box, 'w' | 'h'>): Size => ({ width: w, height: h });

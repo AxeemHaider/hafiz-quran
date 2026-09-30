@@ -1,4 +1,4 @@
-import type { Box, Page, PageLayout, Size } from '@/layout';
+import type { Box, Page, PageLayout } from '@/layout';
 import { surahName } from '@/mushaf/surah-names';
 
 import { toUrduDigits } from './digits';
@@ -38,12 +38,12 @@ export type FrameGeometry = {
   ruleWidths: { outer: number; inner: number; line: number };
 };
 
-/** Lays the Page Frame out in a Page box of `size`, in Page coordinates. */
-export function frameGeometry({ width, height }: Size): FrameGeometry {
-  const u = (p: number) => p * width;
+/** Lays the Page Frame out in a Page box of this width and height, in Page coordinates. */
+export function frameGeometry({ w: width, h: height }: Pick<Box, 'w' | 'h'>): FrameGeometry {
+  const ofWidth = (proportion: number) => proportion * width;
   const header: Box = { x: 0, y: 0, w: width, h: FRAME.headerHeight * height };
-  const edge = u(FRAME.edgeInset);
-  const marginW = u(FRAME.marginColumn);
+  const edge = ofWidth(FRAME.edgeInset);
+  const marginW = ofWidth(FRAME.marginColumn);
 
   const outerBorder: Box = {
     x: edge,
@@ -51,8 +51,8 @@ export function frameGeometry({ width, height }: Size): FrameGeometry {
     w: width - 2 * edge - marginW,
     h: height - header.h - edge,
   };
-  const innerBorder = inset(outerBorder, u(FRAME.ruleGap));
-  const textArea = inset(innerBorder, u(FRAME.textInset));
+  const innerBorder = inset(outerBorder, ofWidth(FRAME.ruleGap));
+  const textArea = inset(innerBorder, ofWidth(FRAME.textInset));
   const marginColumn: Box = { x: outerBorder.x + outerBorder.w, y: outerBorder.y, w: marginW, h: outerBorder.h };
 
   return {
@@ -61,7 +61,7 @@ export function frameGeometry({ width, height }: Size): FrameGeometry {
     innerBorder,
     marginColumn,
     textArea,
-    ruleWidths: { outer: u(FRAME.outerRule), inner: u(FRAME.innerRule), line: u(FRAME.lineRule) },
+    ruleWidths: { outer: ofWidth(FRAME.outerRule), inner: ofWidth(FRAME.innerRule), line: ofWidth(FRAME.lineRule) },
   };
 }
 

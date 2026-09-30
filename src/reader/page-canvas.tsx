@@ -1,11 +1,11 @@
 import { Canvas, Group, Paragraph, type SkTypefaceFontProvider } from '@shopify/react-native-skia';
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 
 import { lineRuleYs, type FrameGeometry, type PageHeader } from '@/frame/page-frame';
 import type { PageLayout } from '@/layout';
 
 import { FrameDrawing } from './frame-drawing';
-import { makeWordParagraph } from './skia-text';
+import { placeText, useDisposeTexts } from './skia-text';
 
 type Props = {
   /** The Page's Lines, laid out in the frame's text area (text-area coordinates). */
@@ -19,38 +19,31 @@ type Props = {
   inkCenterEm: number;
 };
 
-/** Slack so a word laid out at its own width never wraps. */
-const WIDTH_SLACK = 2;
-
 /**
  * Draws a Page: its Page Frame, then its PageLayout inside the frame's text area. Each word is its own
- * RTL Paragraph where the layout put it: each word as its own RTL Paragraph where the layout put it. No layout logic here.
- * An RTL Paragraph right-aligns inside its layout width, so each word's right edge is pinned to the
+ * RTL Paragraph where the layout put it; no layout logic here. Each word's right edge is pinned to the
  * layout's anchor; it is then widened leftward by the Line's scale and stretched around the Line centre.
  */
 export function PageCanvas({ layout, frame, header, fontMgr, width, height, inkCenterEm }: Props) {
   const words = useMemo(
     () =>
       layout.lines.flatMap((line) =>
-        line.words.map((word) => {
-          const paragraph = makeWordParagraph(fontMgr, word.text, layout.fontSize);
-          const baseline = paragraph.getLineMetrics()[0]?.baseline ?? 0;
-          const paragraphWidth = Math.ceil(word.measuredWidth) + WIDTH_SLACK;
-          return {
-            key: word.id,
-            paragraph,
-            origin: { x: word.anchorX, y: line.centerY },
-            transform: [{ scaleX: line.scaleX }, { scaleY: line.scaleY }],
-            x: word.anchorX - paragraphWidth,
-            y: line.centerY + inkCenterEm * layout.fontSize - baseline,
-            width: paragraphWidth,
-          };
-        }),
+        line.words.map((word) => ({
+          key: word.id,
+          origin: { x: word.anchorX, y: line.centerY },
+          transform: [{ scaleX: line.scaleX }, { scaleY: line.scaleY }],
+          ...placeText(fontMgr, word.text, {
+            fontSize: layout.fontSize,
+            inkCenterEm,
+            centerY: line.centerY,
+            rightEdge: word.anchorX,
+            textWidth: word.measuredWidth,
+          }),
+        })),
       ),
     [layout, fontMgr, inkCenterEm],
   );
-
-  useEffect(() => () => words.forEach((w) => w.paragraph.dispose()), [words]);
+  useDisposeTexts(words);
 
   return (
     <Canvas style={{ width, height }}>

@@ -73,7 +73,7 @@ function LoadedReader({ printedPage, font }: { printedPage: number; font: number
           fontMgr={fontMgr}
           measure={measure}
           size={available}
-          layoutPage={layoutPageNumber}
+          layoutPageNumber={layoutPageNumber}
           onPageChange={onPageChange}
         />
       ) : null}

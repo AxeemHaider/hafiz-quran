@@ -14,6 +14,10 @@ _Avoid_: Quran edition, book
 The data that fixes, for a Mushaf, which words fall on each Page and each Line.
 _Avoid_: Page map, line data
 
+**Page layout**:
+The computed placement of one Page's words for a given text area and font (font size, Line positions, word boxes), done on the device (`src/layout/`). Derived from the Mushaf Layout; never changes which words are on a Line.
+_Avoid_: Layout (alone, when the Mushaf Layout could be meant)
+
 **Page**:
 One page of a Mushaf, identified by its printed page number; always shown whole, never reflowed.
 _Avoid_: Screen, spread
@@ -28,7 +32,8 @@ _Avoid_: Pixel-perfect, exact layout
 
 **Page Frame**:
 The decorative border and header (surah name, page number, para) surrounding a Page's Lines.
-_Avoid_: Chrome, border
+Within the Page Frame, "border" means its rules (the double-rule border around the Lines), not the whole frame.
+_Avoid_: Chrome, border (for the whole frame)
 
 ### Quran structure
 
