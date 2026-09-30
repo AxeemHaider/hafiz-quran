@@ -1,5 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
+import type { RukuSign } from '@/frame/ruku-signs';
 import { isJustified, type Line, type LineType, type Page } from '@/layout';
 
 import { withSpecialLineContent } from './special-lines';
@@ -62,6 +63,15 @@ export function readMushafInfo(db: SQLiteDatabase): MushafInfo {
     inkCenterEm: (info.ink_top_em + info.ink_bottom_em) / 2,
     longestLineEmByPage: [...longestByPage.values()],
   };
+}
+
+/** The ruku signs in a Page's margin, from data prep, in Line order. */
+export function readRukuSigns(db: SQLiteDatabase, layoutPageNumber: number): Omit<RukuSign, 'pageNumber'>[] {
+  return db.getAllSync<Omit<RukuSign, 'pageNumber'>>(
+    `select line_number as lineNumber, in_surah as inSurah, ayah_count as ayahCount, in_para as inPara
+     from ruku_signs where page_number = ? order by line_number`,
+    layoutPageNumber,
+  );
 }
 
 /** A Page's Lines with their words, in order; `surah_name` and `basmallah` Lines carry their app-side text. */

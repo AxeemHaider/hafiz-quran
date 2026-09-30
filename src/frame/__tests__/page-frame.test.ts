@@ -25,7 +25,7 @@ describe('Page Frame geometry', () => {
     expect(right(frame.header)).toBeGreaterThanOrEqual(right(frame.outerBorder));
   });
 
-  test('an empty margin column runs down the right-hand side, outside the border', () => {
+  test('a margin column runs down the right-hand side, outside the border', () => {
     expect(frame.marginColumn.w).toBeGreaterThan(0);
     expect(frame.marginColumn.x).toBeGreaterThanOrEqual(right(frame.outerBorder));
     expect(right(frame.marginColumn)).toBeLessThanOrEqual(phone.w);

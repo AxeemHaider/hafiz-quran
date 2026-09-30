@@ -4,8 +4,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, I18nManager, StyleSheet, View, type ViewToken } from 'react-native';
 
 import { frameGeometry, pageHeader, type FrameGeometry } from '@/frame/page-frame';
+import { rukuSignPlacements } from '@/frame/ruku-signs';
 import { DEFAULT_TUNING, layoutPage, mushafFontSize, sizeOf, type Box, type Measure, type Size } from '@/layout';
-import { readPage, type MushafInfo } from '@/mushaf/mushaf-data';
+import { readPage, readRukuSigns, type MushafInfo } from '@/mushaf/mushaf-data';
 import { printedFromLayout } from '@/mushaf/page-number';
 
 import { pageBox } from './page-box';
@@ -134,7 +135,7 @@ type WindowedPageProps = {
 
 /**
  * One mounted Page: read, laid out at the shared Mushaf font size in the Page Frame's text area, and
- * drawn with its frame inside its Page box.
+ * drawn with its frame (and its ruku signs, level with their Lines) inside its Page box.
  */
 function WindowedPage({ db, info, fontMgr, measure, layoutPageNumber, box, frame, fontSize }: WindowedPageProps) {
   const page = useMemo(() => readPage(db, layoutPageNumber), [db, layoutPageNumber]);
@@ -151,12 +152,17 @@ function WindowedPage({ db, info, fontMgr, measure, layoutPageNumber, box, frame
       }),
     [page, info.linesPerPage, measure, frame, fontSize],
   );
+  const rukuSigns = useMemo(
+    () => rukuSignPlacements(readRukuSigns(db, layoutPageNumber), layout.lines, frame),
+    [db, layoutPageNumber, layout, frame],
+  );
   return (
     <View style={[styles.box, { left: box.x, top: box.y }]}>
       <PageCanvas
         layout={layout}
         frame={frame}
         header={header}
+        rukuSigns={rukuSigns}
         fontMgr={fontMgr}
         width={box.w}
         height={box.h}

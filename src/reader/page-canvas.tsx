@@ -2,6 +2,7 @@ import { Canvas, Group, Paragraph, type SkTypefaceFontProvider } from '@shopify/
 import { useMemo } from 'react';
 
 import { lineRuleYs, type FrameGeometry, type PageHeader } from '@/frame/page-frame';
+import type { PlacedRukuSign } from '@/frame/ruku-signs';
 import type { PageLayout } from '@/layout';
 
 import { FrameDrawing } from './frame-drawing';
@@ -12,6 +13,8 @@ type Props = {
   layout: PageLayout;
   frame: FrameGeometry;
   header: PageHeader;
+  /** The ruku signs in the margin column, placed (Page coordinates). */
+  rukuSigns: PlacedRukuSign[];
   fontMgr: SkTypefaceFontProvider;
   width: number;
   height: number;
@@ -24,7 +27,7 @@ type Props = {
  * RTL Paragraph where the layout put it; no layout logic here. Each word's right edge is pinned to the
  * layout's anchor; it is then widened leftward by the Line's scale and stretched around the Line centre.
  */
-export function PageCanvas({ layout, frame, header, fontMgr, width, height, inkCenterEm }: Props) {
+export function PageCanvas({ layout, frame, header, rukuSigns, fontMgr, width, height, inkCenterEm }: Props) {
   const words = useMemo(
     () =>
       layout.lines.flatMap((line) =>
@@ -50,6 +53,7 @@ export function PageCanvas({ layout, frame, header, fontMgr, width, height, inkC
       <FrameDrawing
         frame={frame}
         header={header}
+        rukuSigns={rukuSigns}
         lineRuleYs={lineRuleYs(layout)}
         fontMgr={fontMgr}
         inkCenterEm={inkCenterEm}

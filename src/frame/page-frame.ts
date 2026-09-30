@@ -31,7 +31,7 @@ export type FrameGeometry = {
   /** Centre lines of the border's two rules. */
   outerBorder: Box;
   innerBorder: Box;
-  /** Reserved for ruku and waqf notes; drawn empty for now. */
+  /** Holds the ruku signs (`ruku-signs.ts`); waqf notes will go here too. */
   marginColumn: Box;
   /** What's left for the Lines: the text area the Page layout receives. */
   textArea: Box;

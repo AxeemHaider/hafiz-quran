@@ -40,7 +40,7 @@ const PARAS: readonly (readonly [surah: number, ayah: number, name: string])[] =
   [78, 1, 'عم'],
 ];
 
-/** The Para a word at `location` (surah:ayah:word) falls in. Throws for a malformed location. */
+/** The Para a word at `location` (surah:ayah:word, or an Ayah's surah:ayah) falls in. Throws for a malformed location. */
 export function paraAt(location: string): Para {
   const [surah, ayah] = location.split(':').map(Number);
   if (!(surah >= 1 && surah <= SURAH_COUNT && ayah >= 1)) throw new Error(`Bad word location "${location}"`);

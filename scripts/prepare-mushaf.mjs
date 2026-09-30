@@ -3,6 +3,8 @@
 // Turns the QUL downloads into the app's bundled Mushaf data:
 //   <out>/mushaf.db   prepared SQLite database (schema below)
 //   <out>/mushaf.ttf  the font the em widths and ink height were measured with
+// It also reads the QUL ruku metadata (<qul>/metadata/quran-metadata-ruku.sqlite) for the margin's
+// ruku signs, numbered by src/frame/ruku-signs.ts (imported as TypeScript: Node's type stripping).
 // Default <out> is assets/generated/mushaf/ (git-ignored: QUL licences unresolved, see #8).
 //
 // Run:   npm run prepare:mushaf
@@ -20,14 +22,37 @@
 //   words(id, page_number, line_number, position, location, text, ink_left_em, ink_right_em)
 //         -- 'ayah' Line words, in order; ink_*_em is how far the word's ink reaches past its
 //            advance on that side (>= 0), e.g. waqf marks after a space hang up to ~0.4 em left
+//   ruku_signs(page_number, line_number, in_surah, ayah_count, in_para)
+//         -- one row per ruku, on the Line holding its last word: its number in its surah, its Ayah
+//            count, and its number in the Para it ends in
 import * as hb from 'harfbuzzjs';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
+import { registerHooks } from 'node:module';
 import { basename, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 
+/**
+ * Lets Node import the app's TypeScript modules as Metro resolves them: `@/` is `src/`, and relative
+ * imports inside a .ts module leave out the extension.
+ */
+const SRC = fileURLToPath(new URL('../src/', import.meta.url));
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    const base = specifier.startsWith('@/')
+      ? join(SRC, specifier.slice(2))
+      : specifier.startsWith('.') && context.parentURL?.endsWith('.ts')
+        ? fileURLToPath(new URL(specifier, context.parentURL))
+        : null;
+    const resolved = nextResolve(base && existsSync(`${base}.ts`) ? pathToFileURL(`${base}.ts`).href : specifier, context);
+    return resolved.url.endsWith('.ts') ? { ...resolved, format: 'module-typescript' } : resolved;
+  },
+});
+const { rukuSigns } = await import('../src/frame/ruku-signs.ts');
+
 /** What the Taj 16-line Mushaf Layout must contain. */
-const EXPECTED = { pages: 548, firstWordId: 1, lastWordId: 83668 };
+const EXPECTED = { pages: 548, firstWordId: 1, lastWordId: 83668, rukus: 558 };
 const SURAH_COUNT = 114;
 const LINE_TYPES = new Set(['ayah', 'surah_name', 'basmallah']);
 /**
@@ -44,6 +69,7 @@ const fontFile = resolve(args.font ?? process.env.MUSHAF_FONT ?? join(qul, 'font
 const outDir = resolve(args.out ?? 'assets/generated/mushaf');
 const layoutFile = join(qul, 'layouts/taj-indopak-16-lines.db');
 const scriptFile = join(qul, 'scripts/indopak-nastaleeq.db');
+const rukuFile = join(qul, 'metadata/quran-metadata-ruku.sqlite');
 
 function fail(problems) {
   const shown = problems.slice(0, 20);
@@ -52,7 +78,7 @@ function fail(problems) {
   process.exit(1);
 }
 
-const missing = [layoutFile, scriptFile, fontFile].filter((f) => !existsSync(f));
+const missing = [layoutFile, scriptFile, rukuFile, fontFile].filter((f) => !existsSync(f));
 if (missing.length)
   fail(missing.map((f) => `missing input ${f} (set QUL_DIR / --qul, or MUSHAF_FONT / --font)`));
 
@@ -80,6 +106,48 @@ function readScript() {
     words.set(Number(w.id), { location: w.location, text: w.text });
   db.close();
   return words;
+}
+
+function readRukus() {
+  const db = new DatabaseSync(rukuFile, { readOnly: true });
+  const rukus = db
+    .prepare(
+      `select ruku_number as rukuNumber, surah_ruku_number as surahRukuNumber, verses_count as versesCount,
+         last_verse_key as lastVerseKey
+       from ruku order by ruku_number`,
+    )
+    .all()
+    .map((r) => ({ ...r }));
+  db.close();
+  return rukus;
+}
+
+/**
+ * Each ruku's sign, on the Line holding the last word of its last Ayah, or the problems found.
+ * Numbered from the metadata, not from the U+06E0 ruku mark in the text: 6 ruku ends have no mark.
+ */
+function makeRukuSigns(rukus, lines, words) {
+  const lineOfWord = new Map();
+  for (const l of lines)
+    if (l.line_type === 'ayah')
+      for (let id = l.first_word_id; id <= l.last_word_id; id++)
+        lineOfWord.set(id, { pageNumber: l.page_number, lineNumber: l.line_number });
+  const lastWordOfAyah = new Map();
+  for (const [id, w] of words) {
+    const ayah = w.location.split(':').slice(0, 2).join(':');
+    lastWordOfAyah.set(ayah, Math.max(lastWordOfAyah.get(ayah) ?? 0, id));
+  }
+  const problems = [];
+  if (rukus.length !== EXPECTED.rukus) problems.push(`expected ${EXPECTED.rukus} rukus, metadata has ${rukus.length}`);
+  rukus.forEach((r, i) => {
+    if (r.rukuNumber !== i + 1) problems.push(`ruku numbers skip: #${i + 1} is ${r.rukuNumber}`);
+  });
+  if (problems.length) return { problems };
+  try {
+    return { signs: rukuSigns(rukus, (key) => lineOfWord.get(lastWordOfAyah.get(key))), problems };
+  } catch (e) {
+    return { problems: [e.message] };
+  }
 }
 
 /** Every problem with the layout + script, as messages. Empty means the data is good. */
@@ -190,7 +258,7 @@ const percentile = (values, p) => {
   return sorted[Math.min(sorted.length - 1, Math.floor(p * sorted.length))];
 };
 
-function writeDatabase(file, info, lines, words, shape) {
+function writeDatabase(file, info, lines, words, signs, shape) {
   const db = new DatabaseSync(file);
   db.exec(`
     create table mushaf (name text not null, number_of_pages integer not null,
@@ -204,7 +272,10 @@ function writeDatabase(file, info, lines, words, shape) {
     create table words (id integer primary key, page_number integer not null,
       line_number integer not null, position integer not null, location text not null,
       text text not null, ink_left_em real not null, ink_right_em real not null);
-    create index words_by_line on words (page_number, line_number, position);`);
+    create index words_by_line on words (page_number, line_number, position);
+    create table ruku_signs (page_number integer not null, line_number integer not null,
+      in_surah integer not null, ayah_count integer not null, in_para integer not null);
+    create index ruku_signs_by_page on ruku_signs (page_number, line_number);`);
   const insertLine = db.prepare('insert into lines values (?, ?, ?, ?, ?, ?, ?, ?, ?)');
   const insertWord = db.prepare('insert into words values (?, ?, ?, ?, ?, ?, ?, ?)');
   const tops = [];
@@ -228,6 +299,8 @@ function writeDatabase(file, info, lines, words, shape) {
       isAyah ? l.first_word_id : null, isAyah ? l.last_word_id : null, count, width,
     );
   }
+  const insertSign = db.prepare('insert into ruku_signs values (?, ?, ?, ?, ?)');
+  for (const s of signs) insertSign.run(s.pageNumber, s.lineNumber, s.inSurah, s.ayahCount, s.inPara);
   const inkTop = percentile(tops, INK_PERCENTILE);
   const inkBottom = percentile(bottoms, 1 - INK_PERCENTILE);
   db.prepare('insert into mushaf values (?, ?, ?, ?, ?, ?, ?)').run(
@@ -241,18 +314,19 @@ function writeDatabase(file, info, lines, words, shape) {
 
 const { info, lines } = readLayout();
 const words = readScript();
-const problems = validate(info, lines, words);
+const { signs, problems: rukuProblems } = makeRukuSigns(readRukus(), lines, words);
+const problems = [...validate(info, lines, words), ...rukuProblems];
 if (problems.length) fail(problems);
 
 mkdirSync(outDir, { recursive: true });
 const tmp = join(outDir, 'mushaf.db.tmp');
 rmSync(tmp, { force: true });
-const ink = writeDatabase(tmp, info, lines, words, makeShaper(readFileSync(fontFile)));
+const ink = writeDatabase(tmp, info, lines, words, signs, makeShaper(readFileSync(fontFile)));
 renameSync(tmp, join(outDir, 'mushaf.db'));
 copyFileSync(fontFile, join(outDir, 'mushaf.ttf'));
 
 const em = (n) => n.toFixed(3);
 console.log(
-  `prepare-mushaf: ${info.name}: ${lines.length} Lines on ${EXPECTED.pages} Pages, font ${basename(fontFile)}, ` +
+  `prepare-mushaf: ${info.name}: ${lines.length} Lines on ${EXPECTED.pages} Pages, ${signs.length} ruku signs, font ${basename(fontFile)}, ` +
     `ink ${em(ink.inkBottom)}..${em(ink.inkTop)} = ${em(ink.inkTop - ink.inkBottom)} em -> ${outDir}`,
 );
