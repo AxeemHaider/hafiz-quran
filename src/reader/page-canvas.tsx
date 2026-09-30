@@ -8,7 +8,9 @@ import type { PageLayout } from '@/layout';
 import { FrameDrawing } from './frame-drawing';
 import { placeText, useDisposeTexts } from './skia-text';
 
-type Props = {
+type Props = PageDrawingProps & { width: number; height: number };
+
+type PageDrawingProps = {
   /** The Page's Lines, laid out in the frame's text area (text-area coordinates). */
   layout: PageLayout;
   frame: FrameGeometry;
@@ -16,8 +18,6 @@ type Props = {
   /** The ruku signs in the margin column, placed (Page coordinates). */
   placedRukuSigns: PlacedRukuSign[];
   fontMgr: SkTypefaceFontProvider;
-  width: number;
-  height: number;
   /** Middle of the font's ink, above the baseline, in em: what gets centred on each Line's centre. */
   inkCenterEm: number;
 };
@@ -27,7 +27,16 @@ type Props = {
  * RTL Paragraph where the layout put it; no layout logic here. Each word's right edge is pinned to the
  * layout's anchor; it is then widened leftward by the Line's scale and stretched around the Line centre.
  */
-export function PageCanvas({ layout, frame, header, placedRukuSigns, fontMgr, width, height, inkCenterEm }: Props) {
+export function PageCanvas({ width, height, ...page }: Props) {
+  return (
+    <Canvas style={{ width, height }}>
+      <PageDrawing {...page} />
+    </Canvas>
+  );
+}
+
+/** The Page's drawing without its Canvas, so it can also be drawn offscreen (e.g. to an image). */
+export function PageDrawing({ layout, frame, header, placedRukuSigns, fontMgr, inkCenterEm }: PageDrawingProps) {
   const words = useMemo(
     () =>
       layout.lines.flatMap((line) =>
@@ -49,7 +58,7 @@ export function PageCanvas({ layout, frame, header, placedRukuSigns, fontMgr, wi
   useDisposeTexts(words);
 
   return (
-    <Canvas style={{ width, height }}>
+    <>
       <FrameDrawing
         frame={frame}
         header={header}
@@ -65,6 +74,6 @@ export function PageCanvas({ layout, frame, header, placedRukuSigns, fontMgr, wi
           </Group>
         ))}
       </Group>
-    </Canvas>
+    </>
   );
 }

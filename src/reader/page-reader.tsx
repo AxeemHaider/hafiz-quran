@@ -1,6 +1,6 @@
 import { useFonts } from '@shopify/react-native-skia';
 import { SQLiteProvider, useSQLiteContext } from 'expo-sqlite';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,6 +11,8 @@ import { MUSHAF_DB_NAME, readMushafInfo } from '@/mushaf/mushaf-data';
 import { layoutFromPrinted, printedFromLayout } from '@/mushaf/page-number';
 
 import { PagePager } from './page-pager';
+import { PageCurlPager } from './prototype/page-curl-pager';
+import { VariantSwitcher, variantOf } from './prototype/variant-switcher';
 import { MUSHAF_FONT_FAMILY, makeSkiaMeasure } from './skia-text';
 
 /** The Page reader, opened at a printed page number. The Page is drawn dark on light whatever the theme. */
@@ -46,6 +48,7 @@ function LoadedReader({ printedPage, font }: { printedPage: number; font: number
   const info = useMemo(() => readMushafInfo(db), [db]);
   const measure = useMemo(() => (fontMgr ? makeSkiaMeasure(fontMgr) : null), [fontMgr]);
   const [available, setAvailable] = useState<Size | null>(null);
+  const variant = variantOf(useLocalSearchParams<{ variant?: string }>().variant);
 
   const layoutPageNumber = layoutFromPrinted(printedPage);
   const inRange = Number.isInteger(layoutPageNumber) && layoutPageNumber >= 1 && layoutPageNumber <= info.pageCount;
@@ -66,7 +69,20 @@ function LoadedReader({ printedPage, font }: { printedPage: number; font: number
   }
   return (
     <View style={styles.fill} onLayout={onLayout}>
-      {available && fontMgr && measure ? (
+      {available && fontMgr && measure && variant !== 'slide' ? (
+        <PageCurlPager
+          key={variant}
+          variant={variant}
+          db={db}
+          info={info}
+          fontMgr={fontMgr}
+          measure={measure}
+          size={available}
+          layoutPageNumber={layoutPageNumber}
+          onPageChange={onPageChange}
+        />
+      ) : null}
+      {available && fontMgr && measure && variant === 'slide' ? (
         <PagePager
           db={db}
           info={info}
@@ -77,6 +93,7 @@ function LoadedReader({ printedPage, font }: { printedPage: number; font: number
           onPageChange={onPageChange}
         />
       ) : null}
+      <VariantSwitcher current={variant} />
     </View>
   );
 }
