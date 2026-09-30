@@ -15,7 +15,7 @@ const FRAME = {
   edgeInset: 0.012,
   /** Right-hand margin column for ruku and waqf notes, of the Page width. */
   marginColumn: 0.06,
-  /** Outer (heavier) and inner rule of the double-rule border, and the rule between Lines. */
+  /** Outer (heavier) and inner rule of the double-rule border, and the rule under each Line. */
   outerRule: 0.005,
   innerRule: 0.0025,
   lineRule: 0.0015,
@@ -65,9 +65,17 @@ export function frameGeometry({ width, height }: Size): FrameGeometry {
   };
 }
 
-/** Where the thin rules between a laid-out Page's Lines go: y positions in text-area coordinates. */
+/** Below this offset a Page's Lines fill the text area: its last Line sits on the border. */
+const FULL_PAGE_EPSILON = 1e-6;
+
+/**
+ * Where the thin rule under each of a laid-out Page's Lines goes: y positions in text-area coordinates.
+ * On a full Page the last Line's rule would sit on the border, so it is left out; a short, vertically
+ * centred Page keeps a rule under its last Line too.
+ */
 export function lineRuleYs({ pitch, offsetY, lines }: Pick<PageLayout, 'pitch' | 'offsetY' | 'lines'>): number[] {
-  return lines.slice(1).map((_, i) => offsetY + (i + 1) * pitch);
+  const ys = lines.map((_, i) => offsetY + (i + 1) * pitch);
+  return offsetY <= FULL_PAGE_EPSILON ? ys.slice(0, -1) : ys;
 }
 
 export type PageHeader ={ surah: string; pageNumber: string; para: string };

@@ -49,7 +49,7 @@ describe('Page Frame geometry', () => {
   });
 });
 
-describe('rules between Lines', () => {
+describe('rules under Lines', () => {
   const line = (lineNumber: number, centerY: number): PlacedLine => ({
     lineNumber,
     type: 'ayah',
@@ -59,14 +59,14 @@ describe('rules between Lines', () => {
     words: [],
   });
 
-  test('a thin rule separates each pair of neighbouring Lines, on the boundary between them', () => {
+  test('on a full Page a thin rule runs under each Line, except the last, which sits on the border', () => {
     const layout: PageLayout = { fontSize: 20, pitch: 40, offsetY: 0, lines: [line(1, 20), line(2, 60), line(3, 100)] };
     expect(lineRuleYs(layout)).toEqual([40, 80]);
   });
 
-  test('a short, vertically centred Page gets rules only between its own Lines', () => {
+  test('a short, vertically centred Page gets a rule under every one of its Lines, the last included', () => {
     const layout: PageLayout = { fontSize: 20, pitch: 40, offsetY: 100, lines: [line(1, 120), line(2, 160)] };
-    expect(lineRuleYs(layout)).toEqual([140]);
+    expect(lineRuleYs(layout)).toEqual([140, 180]);
   });
 });
 

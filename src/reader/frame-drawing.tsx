@@ -9,7 +9,7 @@ import { INK_COLOR, makeWordParagraph } from './skia-text';
 type Props = {
   frame: FrameGeometry;
   header: PageHeader;
-  /** Where the thin rules between Lines go, in text-area coordinates. */
+  /** Where the thin rules under the Lines go, in text-area coordinates. */
   lineRuleYs: number[];
   fontMgr: SkTypefaceFontProvider;
   /** Middle of the font's ink above the baseline, in em, so header text is centred on its ink. */
@@ -23,7 +23,7 @@ const WIDTH_SLACK = 2;
 /**
  * Draws the Page Frame, in the same Canvas and coordinates as the Lines: the header strip (surah on
  * the left, printed page number in the centre, Para on the right, as in the Taj print), the double-rule
- * border, the thin rules between Lines and the empty margin column. No geometry of its own.
+ * border, the thin rules under the Lines and the empty margin column. No geometry of its own.
  */
 export function FrameDrawing({ frame, header, lineRuleYs, fontMgr, inkCenterEm }: Props) {
   const { header: strip, innerBorder, outerBorder, marginColumn, textArea, ruleWidths } = frame;
