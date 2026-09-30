@@ -27,11 +27,10 @@ You can start developing by editing the files inside the **app** directory. This
 
 ## Mushaf data (required to run the reader)
 
-The Page reader bundles a prepared Mushaf database and font that are **not in git** (QUL licences unresolved, see #8). Generate them from the local QUL sandbox (`sandbox/qul/`, see its README):
+The Page reader bundles a prepared Mushaf database and font that are generated, not committed. Generate them from the QUL data committed in `sandbox/qul/` (see its README; licences still unresolved, see #8). After a fresh clone, run this once before `npx expo start -c`:
 
 ```bash
 npm run prepare:mushaf
-# from a worktree: QUL_DIR=/path/to/main/checkout/sandbox/qul npm run prepare:mushaf
 # swap the font:   MUSHAF_FONT=/path/to/font.ttf npm run prepare:mushaf   (or --qul / --font / --out)
 ```
 
