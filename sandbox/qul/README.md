@@ -23,6 +23,14 @@ Schema: `words(id, location, surah, ayah, word, text)`; `id` = layout word id. S
 ## fonts/  (QUL CDN, no login)
 A-preview-waqf-lazim.woff2 (83 KB) · B-hanafi-{normal,compact,compressed}.ttf (300–311 KB) · B-hanafi-normal.woff2 (79 KB) · C-kfgqpc-nastaleeq.ttf (255 KB) · D-digitalkhatt-indopak.otf (495 KB)
 
+## metadata/  (QUL quran-metadata, fetched 2026-10-01 while logged in)
+| file | QUL | size (zip) | rows |
+|---|---|---|---|
+| quran-metadata-ruku.sqlite / .json | quran-metadata/65 (Ruku) | 32 KB (10 KB) / 82 KB (12 KB) | 558 |
+
+Schema: `ruku(ruku_number, surah_ruku_number, verses_count, first_verse_key, last_verse_key, verse_mapping)`; keys are `surah:ayah`, `verse_mapping` is JSON like `{"2":"8-20"}`. No page or Para field.
+Cross-check against the ruku marker U+06E0 in `indopak-nastaleeq.db`: every marker sits on a `last_verse_key`; 6 ruku ends carry no marker (3:171, 7:206, 16:50, 25:60, 53:62, 96:19; all but 3:171 are sajda ayahs).
+
 ## Join
 ```sql
 attach 'scripts/indopak-nastaleeq.db' as s;
