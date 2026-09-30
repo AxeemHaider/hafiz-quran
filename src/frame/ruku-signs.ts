@@ -50,16 +50,16 @@ export function rukuSigns(
  * after a font swap.
  */
 const SIGN = {
-  letterSize: 1,
-  digitSize: 0.5,
-  insideDigitSize: 0.42,
+  letterSize: 1.15,
+  digitSize: 1,
+  insideDigitSize: 0.75,
   /** The ع's glyph sits low in its em: raise it so its ink is level with the Line's centre. */
   letterY: -0.2,
   /** Centre of the numbers above and below the ع, from the Line's centre. */
-  aboveY: -1,
-  belowY: 0.85,
+  aboveY: -0.78,
+  belowY: 0.86,
   /** Centre of the Ayah count, inside the ع's lower bowl, from the Line's centre. */
-  insideX: 0.06,
+  insideX: 0.1,
   insideY: 0.02,
 } as const;
 

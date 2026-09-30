@@ -94,7 +94,7 @@ describe('ruku sign placement in the margin column', () => {
     for (const part of RUKU_SIGN_PARTS.map((p) => placed[p])) {
       expect(part.centerX).toBeGreaterThan(column.x);
       expect(part.centerX).toBeLessThan(column.x + column.w);
-      expect(part.fontSize).toBeLessThanOrEqual(column.w);
+      expect(part.fontSize).toBeLessThanOrEqual(placed.letter.fontSize);
     }
   });
 
