@@ -7,6 +7,11 @@ import type { Measure } from '@/layout';
 export const MUSHAF_FONT_FAMILY = 'MushafFont';
 
 export const INK_COLOR = '#1a1a1a';
+/**
+ * Extra ink weight, in em: every glyph's ink is grown (dilated) by this much on each side, since the
+ * font comes in one weight and the Taj print is heavier. Advances don't change, so neither does the layout.
+ */
+const INK_WEIGHT_EM = 0.015;
 /** Lay out on one line, far wider than any word. */
 const UNBOUNDED_WIDTH = 1e5;
 /** Slack so a text laid out at its own width never wraps. */
@@ -14,8 +19,12 @@ const WIDTH_SLACK = 2;
 
 /** One word as its own RTL Paragraph, laid out and ready to measure or draw. */
 export function makeWordParagraph(fontMgr: SkTypefaceFontProvider, text: string, fontSize: number): SkParagraph {
+  const ink = Skia.Paint();
+  ink.setColor(Skia.Color(INK_COLOR));
+  const grow = INK_WEIGHT_EM * fontSize;
+  ink.setImageFilter(Skia.ImageFilter.MakeDilate(grow, grow));
   const paragraph = Skia.ParagraphBuilder.Make({ textDirection: TextDirection.RTL }, fontMgr)
-    .pushStyle({ fontFamilies: [MUSHAF_FONT_FAMILY], fontSize, color: Skia.Color(INK_COLOR) })
+    .pushStyle({ fontFamilies: [MUSHAF_FONT_FAMILY], fontSize, color: Skia.Color(INK_COLOR) }, ink)
     .addText(text)
     .build();
   paragraph.layout(UNBOUNDED_WIDTH);
