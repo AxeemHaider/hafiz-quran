@@ -152,7 +152,7 @@ function WindowedPage({ db, info, fontMgr, measure, layoutPageNumber, box, frame
       }),
     [page, info.linesPerPage, measure, frame, fontSize],
   );
-  const rukuSigns = useMemo(
+  const placedRukuSigns = useMemo(
     () => rukuSignPlacements(readRukuSigns(db, layoutPageNumber), layout.lines, frame),
     [db, layoutPageNumber, layout, frame],
   );
@@ -162,7 +162,7 @@ function WindowedPage({ db, info, fontMgr, measure, layoutPageNumber, box, frame
         layout={layout}
         frame={frame}
         header={header}
-        rukuSigns={rukuSigns}
+        placedRukuSigns={placedRukuSigns}
         fontMgr={fontMgr}
         width={box.w}
         height={box.h}

@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 
 import type { Box } from '@/layout';
 import type { FrameGeometry, PageHeader } from '@/frame/page-frame';
-import type { PlacedRukuSign } from '@/frame/ruku-signs';
+import { RUKU_SIGN_PARTS, type PlacedRukuSign } from '@/frame/ruku-signs';
 
 import { INK_COLOR, placeText, useDisposeTexts } from './skia-text';
 
@@ -11,7 +11,7 @@ type Props = {
   frame: FrameGeometry;
   header: PageHeader;
   /** The ruku signs in the margin column, placed. */
-  rukuSigns: PlacedRukuSign[];
+  placedRukuSigns: PlacedRukuSign[];
   /** Where the thin rules under the Lines go, in text-area coordinates. */
   lineRuleYs: number[];
   fontMgr: SkTypefaceFontProvider;
@@ -27,7 +27,7 @@ const HEADER_TEXT = 0.7;
  * the left, printed page number in the centre, Para on the right, as in the Taj print), the double-rule
  * border, the thin rules under the Lines, and the margin column with its ruku signs. No geometry of its own.
  */
-export function FrameDrawing({ frame, header, rukuSigns, lineRuleYs, fontMgr, inkCenterEm }: Props) {
+export function FrameDrawing({ frame, header, placedRukuSigns, lineRuleYs, fontMgr, inkCenterEm }: Props) {
   const { header: strip, innerBorder, outerBorder, marginColumn, textArea, ruleWidths } = frame;
 
   const texts = useMemo(() => {
@@ -35,8 +35,8 @@ export function FrameDrawing({ frame, header, rukuSigns, lineRuleYs, fontMgr, in
     const left = innerBorder.x;
     const right = innerBorder.x + innerBorder.w;
     const middle = outerBorder.x + outerBorder.w / 2;
-    const signTexts = rukuSigns.flatMap((sign) =>
-      (['letter', 'above', 'inside', 'below'] as const).map((part) => {
+    const signTexts = placedRukuSigns.flatMap((sign) =>
+      RUKU_SIGN_PARTS.map((part) => {
         const { text, fontSize, centerX, centerY } = sign[part];
         return {
           key: `ruku-${sign.lineNumber}-${part}`,
@@ -50,7 +50,7 @@ export function FrameDrawing({ frame, header, rukuSigns, lineRuleYs, fontMgr, in
       { key: 'page', ...placeText(fontMgr, header.pageNumber, { ...placement, rightEdge: (w) => middle + w / 2 }) },
       { key: 'surah', ...placeText(fontMgr, header.surah, { ...placement, rightEdge: (w) => left + w }) },
     ];
-  }, [fontMgr, header, rukuSigns, strip, innerBorder, outerBorder, inkCenterEm]);
+  }, [fontMgr, header, placedRukuSigns, strip, innerBorder, outerBorder, inkCenterEm]);
   useDisposeTexts(texts);
 
   return (

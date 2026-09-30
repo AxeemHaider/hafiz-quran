@@ -1,7 +1,7 @@
 import type { PlacedLine } from '@/layout';
 
 import { frameGeometry } from '../page-frame';
-import { rukuSignPlacements, rukuSigns, type LinePosition, type Ruku } from '../ruku-signs';
+import { RUKU_SIGN_PARTS, rukuSignPlacements, rukuSigns, type LinePosition, type Ruku } from '../ruku-signs';
 
 /** All 558 rukus from the QUL ruku metadata in the committed sandbox (quran-metadata/65). */
 const QUL_RUKUS: Ruku[] = Object.values(
@@ -12,12 +12,12 @@ const QUL_RUKUS: Ruku[] = Object.values(
 ).map((r) => ({
   rukuNumber: r.ruku_number,
   surahRukuNumber: r.surah_ruku_number,
-  versesCount: r.verses_count,
-  lastVerseKey: r.last_verse_key,
+  ayahCount: r.verses_count,
+  lastAyahKey: r.last_verse_key,
 }));
 /** A stand-in Mushaf Layout: every Ayah ends on a Line of its own, one Page per surah. */
-const oneLinePerAyah = (verseKey: string): LinePosition => {
-  const [surah, ayah] = verseKey.split(':').map(Number);
+const oneLinePerAyah = (ayahKey: string): LinePosition => {
+  const [surah, ayah] = ayahKey.split(':').map(Number);
   return { pageNumber: surah, lineNumber: ayah };
 };
 
@@ -91,7 +91,7 @@ describe('ruku sign placement in the margin column', () => {
   test('the whole sign stays inside the margin column', () => {
     const [placed] = rukuSignPlacements([sign], lines, frame);
     const column = frame.marginColumn;
-    for (const part of [placed.letter, placed.above, placed.inside, placed.below]) {
+    for (const part of RUKU_SIGN_PARTS.map((p) => placed[p])) {
       expect(part.centerX).toBeGreaterThan(column.x);
       expect(part.centerX).toBeLessThan(column.x + column.w);
       expect(part.fontSize).toBeLessThanOrEqual(column.w);

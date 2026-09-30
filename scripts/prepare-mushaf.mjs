@@ -12,7 +12,7 @@
 //        QUL_DIR=/path/to/sandbox/qul or --qul <dir> (agents in a worktree point at the main checkout).
 // Font:  <qul>/fonts/B-hanafi-normal.ttf by default. Swap it with MUSHAF_FONT=<file> or --font <file>
 //        and re-run: widths and ink height are re-measured with the new font.
-// Needs Node >= 22.13 (node:sqlite).
+// Needs Node >= 22.18 (node:sqlite, and TypeScript imports via scripts/import-app-ts.mjs).
 //
 // Fails loudly, writing nothing, if the data is wrong. Output schema:
 //   mushaf(name, number_of_pages, lines_per_page, font_name, ink_top_em, ink_bottom_em, ink_height_em)
@@ -27,28 +27,11 @@
 //            count, and its number in the Para it ends in
 import * as hb from 'harfbuzzjs';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
-import { registerHooks } from 'node:module';
 import { basename, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 
-/**
- * Lets Node import the app's TypeScript modules as Metro resolves them: `@/` is `src/`, and relative
- * imports inside a .ts module leave out the extension.
- */
-const SRC = fileURLToPath(new URL('../src/', import.meta.url));
-registerHooks({
-  resolve(specifier, context, nextResolve) {
-    const base = specifier.startsWith('@/')
-      ? join(SRC, specifier.slice(2))
-      : specifier.startsWith('.') && context.parentURL?.endsWith('.ts')
-        ? fileURLToPath(new URL(specifier, context.parentURL))
-        : null;
-    const resolved = nextResolve(base && existsSync(`${base}.ts`) ? pathToFileURL(`${base}.ts`).href : specifier, context);
-    return resolved.url.endsWith('.ts') ? { ...resolved, format: 'module-typescript' } : resolved;
-  },
-});
+await import('./import-app-ts.mjs');
 const { rukuSigns } = await import('../src/frame/ruku-signs.ts');
 
 /** What the Taj 16-line Mushaf Layout must contain. */
@@ -112,8 +95,8 @@ function readRukus() {
   const db = new DatabaseSync(rukuFile, { readOnly: true });
   const rukus = db
     .prepare(
-      `select ruku_number as rukuNumber, surah_ruku_number as surahRukuNumber, verses_count as versesCount,
-         last_verse_key as lastVerseKey
+      `select ruku_number as rukuNumber, surah_ruku_number as surahRukuNumber, verses_count as ayahCount,
+         last_verse_key as lastAyahKey
        from ruku order by ruku_number`,
     )
     .all()
