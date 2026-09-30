@@ -5,7 +5,10 @@
  */
 const PRINTED_OFFSET = 1;
 
-export const printedFromLayout = (layoutPage: number) => layoutPage + PRINTED_OFFSET;
+export const printedFromLayout = (layoutPage: number) => {
+  'worklet';
+  return layoutPage + PRINTED_OFFSET;
+};
 export const layoutFromPrinted = (printedPage: number) => printedPage - PRINTED_OFFSET;
 
 /** The Page the app opens at: layout Page 1. */
@@ -19,4 +22,7 @@ export type PageSide = 'right' | 'left';
  * printed pages are on the right. The reference photo of printed 401 has its margin on the right
  * anyway; the margin follows the Page's own side by choice.
  */
-export const pageSide = (printedPage: number): PageSide => (printedPage % 2 === 0 ? 'right' : 'left');
+export const pageSide = (printedPage: number): PageSide => {
+  'worklet';
+  return printedPage % 2 === 0 ? 'right' : 'left';
+};

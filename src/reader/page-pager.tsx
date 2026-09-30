@@ -1,49 +1,80 @@
-import type { SkTypefaceFontProvider } from '@shopify/react-native-skia';
+import {
+  BlurMask,
+  Canvas,
+  Fill,
+  Group,
+  Image,
+  LinearGradient,
+  Path,
+  Rect,
+  Skia,
+  vec,
+  type SkImage,
+  type SkTypefaceFontProvider,
+} from '@shopify/react-native-skia';
 import type { SQLiteDatabase } from 'expo-sqlite';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, I18nManager, StyleSheet, View, type ViewToken } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { View } from 'react-native';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import { Easing, useDerivedValue, useSharedValue, withTiming, type SharedValue } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 
-import { frameGeometry, pageHeader, type FrameGeometry } from '@/frame/page-frame';
-import { rukuSignPlacements } from '@/frame/ruku-signs';
-import { DEFAULT_TUNING, layoutPage, mushafFontSize, sizeOf, type Box, type Measure, type Size } from '@/layout';
-import { readPage, readRukuSigns, type MushafInfo } from '@/mushaf/mushaf-data';
+import { frameGeometry } from '@/frame/page-frame';
+import { DEFAULT_TUNING, mushafFontSize, sizeOf, type Measure, type Size } from '@/layout';
+import type { MushafInfo } from '@/mushaf/mushaf-data';
 import { pageSide, printedFromLayout } from '@/mushaf/page-number';
 
 import { pageBox } from './page-box';
-import { PageCanvas } from './page-canvas';
-import { isInWindow, pagerOrder } from './pager-order';
+import {
+  dragPoint,
+  finishPoint,
+  finishesTurn,
+  flapBack,
+  foldGeometry,
+  grabbedCornerY,
+  isLeafTurn,
+  turnDirection,
+  type Affine,
+  type Point,
+  type TurnDirection,
+} from './page-fold';
+import { PAPER_COLOR, drawPageImage, usePageImages } from './page-images';
 
 type Props = {
   db: SQLiteDatabase;
   info: MushafInfo;
   fontMgr: SkTypefaceFontProvider;
   measure: Measure;
-  /** The safe area the pager fills; each Page item is this size. */
+  /** The safe area the pager fills. */
   size: Size;
-  /** The layout Page to show; changing it from outside (e.g. a deep link) turns to it. */
+  /** The layout Page to show; changing it from outside (e.g. a deep link) jumps to it. */
   layoutPageNumber: number;
   /** Called when the hafiz turns to another Page. */
   onPageChange: (layoutPage: number) => void;
 };
 
-const VIEWABILITY = { itemVisiblePercentThreshold: 60 };
+/** The back of the paper, a shade darker than its face. */
+const FLAP_PAPER_COLOR = '#f1ecdf';
+/** How strongly a Leaf's back shows the target Page, and a plain back the current Page through it. */
+const LEAF_BACK_OPACITY = 0.3;
+const SHOW_THROUGH_OPACITY = 0.06;
+/** A turn's settling animation: finishing (ms, scaled by what's left) and springing back. */
+const FINISH_MS = { min: 140, max: 380 };
+const RETURN_MS = { min: 160, max: 300 };
+const IDENTITY: Affine = [1, 0, 0, 0, 1, 0];
 
 /**
- * A horizontal pager over all Pages in printed order: the next Page comes in from the left, as in the
- * book. Only the current Page and its neighbours are laid out and mounted; the rest are empty items.
- * The Mushaf font size is computed once per Page-box size and shared by every Page. Each Page gets the
- * frame for its side of the open Mushaf, with the margin column on that side.
+ * The reader's Pages, turned by a fold that follows the finger (ADR 0002). Swiping right turns forward:
+ * the next Page comes in from the left, as in the book. Each Page in the window is drawn once to an
+ * image; one Canvas then draws the turn from shared values, so the drag and the fold stay on the UI
+ * thread. JS runs once per turn, when it settles. A route change jumps to its Page without a fold.
  */
 export function PagePager({ db, info, fontMgr, measure, size, layoutPageNumber: targetPage, onPageChange }: Props) {
-  const order = useMemo(() => pagerOrder(info.pageCount, I18nManager.isRTL), [info.pageCount]);
-  const indices = useMemo(() => Array.from({ length: info.pageCount }, (_, i) => i), [info.pageCount]);
-  const [current, setCurrent] = useState(targetPage);
-  const listRef = useRef<FlatList<number>>(null);
-
   const box = pageBox(size, DEFAULT_TUNING.maxPageWidth);
+  const page = useMemo(() => ({ width: box.w, height: box.h }), [box.w, box.h]);
   const frames = useMemo(
-    () => ({ right: frameGeometry({ w: box.w, h: box.h }, 'right'), left: frameGeometry({ w: box.w, h: box.h }, 'left') }),
-    [box.w, box.h],
+    () => ({ right: frameGeometry({ w: page.width, h: page.height }, 'right'), left: frameGeometry({ w: page.width, h: page.height }, 'left') }),
+    [page],
   );
   const fontSize = useMemo(
     () =>
@@ -57,125 +88,242 @@ export function PagePager({ db, info, fontMgr, measure, size, layoutPageNumber: 
       }),
     [info, frames],
   );
+  const draw = useCallback(
+    (layoutPage: number) =>
+      drawPageImage(
+        { db, info, fontMgr, measure, size: page, fontSize, frameFor: (p) => frames[pageSide(printedFromLayout(p))] },
+        layoutPage,
+      ),
+    [db, info, fontMgr, measure, page, fontSize, frames],
+  );
 
-  // Kept in refs so FlatList's onViewableItemsChanged can stay one stable function.
-  const currentRef = useRef(current);
-  const orderRef = useRef(order);
-  const onPageChangeRef = useRef(onPageChange);
+  const [current, setCurrent] = useState(targetPage);
+  // Jump to a Page asked for from outside (a route change), not to the one just turned to.
+  const [shownTarget, setShownTarget] = useState(targetPage);
+  if (targetPage !== shownTarget) {
+    setShownTarget(targetPage);
+    setCurrent(targetPage);
+  }
+  const images = usePageImages(current, info.pageCount, draw);
+
+  // The turn, on the UI thread: which Page is current, which way it is turning, the grabbed corner's
+  // y, and where that corner has been dragged to (turn frame; see page-fold).
+  const currentPage = useSharedValue(current);
+  const turning = useSharedValue<0 | TurnDirection>(0);
+  const cornerY = useSharedValue(0);
+  const dragX = useSharedValue(0);
+  const dragY = useSharedValue(0);
+  const startY = useSharedValue(0);
+  const settling = useSharedValue(false);
+  // Pages whose image is ready: a turn only starts towards one of these.
+  const ready = useSharedValue<number[]>([]);
+
   useEffect(() => {
-    currentRef.current = current;
-    orderRef.current = order;
-    onPageChangeRef.current = onPageChange;
-  }, [current, order, onPageChange]);
+    currentPage.set(current);
+  }, [current, currentPage]);
+  useEffect(() => {
+    ready.set([...images.keys()]);
+  }, [images, ready]);
 
-  const [onViewable] = useState(() => ({ viewableItems }: { viewableItems: ViewToken<number>[] }) => {
-    const index = viewableItems[0]?.index;
-    if (index == null) return;
-    const page = orderRef.current.pageAt(index);
-    if (page === currentRef.current) return;
-    currentRef.current = page;
-    setCurrent(page);
-    onPageChangeRef.current(page);
+  const onTurned = useCallback(
+    (layoutPage: number) => {
+      setCurrent(layoutPage);
+      onPageChange(layoutPage);
+    },
+    [onPageChange],
+  );
+
+  const pageCount = info.pageCount;
+  const pan = Gesture.Pan()
+    .activeOffsetX([-10, 10])
+    .onBegin((e) => {
+      startY.set(e.y - box.y);
+    })
+    .onUpdate((e) => {
+      if (settling.get()) return;
+      if (turning.get() === 0) {
+        const dir = turnDirection(e.translationX);
+        const target = currentPage.get() + dir;
+        if (target < 1 || target > pageCount || !ready.get().includes(target)) return;
+        turning.set(dir);
+        cornerY.set(grabbedCornerY(startY.get(), page));
+      }
+      const dir = turning.get() as TurnDirection;
+      const point = dragPoint({ x: e.translationX, y: e.translationY }, dir, cornerY.get(), page);
+      dragX.set(point.x);
+      dragY.set(point.y);
+    })
+    .onEnd((e) => {
+      const dir = turning.get();
+      if (settling.get() || dir === 0) return;
+      settling.set(true);
+      const velocity = dir * e.velocityX;
+      const from = { x: dragX.get(), y: dragY.get() };
+      if (finishesTurn(from, velocity, page)) {
+        const to = finishPoint(cornerY.get(), page);
+        const ms = ((to.x - from.x) / Math.max(velocity, 2.2 * page.width)) * 1000;
+        const duration = Math.min(FINISH_MS.max, Math.max(FINISH_MS.min, ms));
+        const easing = Easing.out(Easing.quad);
+        dragY.set(withTiming(to.y, { duration, easing }));
+        dragX.set(
+          withTiming(to.x, { duration, easing }, (done) => {
+            if (!done) return;
+            const turnedTo = currentPage.get() + dir;
+            currentPage.set(turnedTo);
+            turning.set(0);
+            dragX.set(0);
+            settling.set(false);
+            scheduleOnRN(onTurned, turnedTo);
+          }),
+        );
+      } else {
+        const duration = Math.min(RETURN_MS.max, Math.max(RETURN_MS.min, from.x * 0.6));
+        const easing = Easing.out(Easing.cubic);
+        dragY.set(withTiming(cornerY.get(), { duration, easing }));
+        dragX.set(
+          withTiming(0, { duration, easing }, () => {
+            turning.set(0);
+            settling.set(false);
+          }),
+        );
+      }
+    });
+
+  const fold = useDerivedValue(() => {
+    const dir = turning.get();
+    return dir === 0 ? null : foldGeometry(page, dir, cornerY.get(), { x: dragX.get(), y: dragY.get() });
+  });
+  const whole = useMemo(() => Skia.Path.Rect(Skia.XYWHRect(0, 0, page.width, page.height)), [page]);
+  const flatPath = useDerivedValue(() => {
+    const f = fold.get();
+    return f ? toPath(f.flat) : whole;
+  });
+  const liftedPath = useDerivedValue(() => toPath(fold.get()?.lifted ?? []));
+  const flapPath = useDerivedValue(() => toPath(fold.get()?.flap ?? []));
+  const flapMatrix = useDerivedValue(() => toMatrix(fold.get()?.reflection ?? IDENTITY));
+  const leafBackMatrix = useDerivedValue(() => toMatrix(flapBack(fold.get()?.reflection ?? IDENTITY, page)));
+  // Shadow on the target Page, falling away from the fold; it thins as the flap nears the hinge.
+  const crease = useDerivedValue(() => {
+    const f = fold.get();
+    return f ? vec(f.crease.x, f.crease.y) : vec(0, 0);
+  });
+  const shadowEnd = useDerivedValue(() => {
+    const f = fold.get();
+    if (!f) return vec(1, 0);
+    const depth = Math.max(4, Math.min(40, (2 * page.width - dragX.get()) * 0.12));
+    return vec(f.crease.x - f.normal.x * depth, f.crease.y - f.normal.y * depth);
+  });
+  // Shading across the flap from the fold, so it reads as paper bending over.
+  const creaseShadingEnd = useDerivedValue(() => {
+    const f = fold.get();
+    if (!f) return vec(1, 0);
+    const depth = Math.max(6, Math.min(60, dragX.get() * 0.25));
+    return vec(f.crease.x + f.normal.x * depth, f.crease.y + f.normal.y * depth);
   });
 
-  // Turn to a Page asked for from outside (a route change), not to the one just swiped to.
-  // Scrolling makes it viewable, which updates `current`.
-  useEffect(() => {
-    if (targetPage === currentRef.current) return;
-    listRef.current?.scrollToIndex({ index: order.indexOf(targetPage), animated: false });
-  }, [targetPage, order]);
+  const drawn = [...images];
+  const layers = (role: LayerRole) =>
+    drawn.map(([layoutPage, image]) => (
+      <PageLayer
+        key={layoutPage}
+        layoutPage={layoutPage}
+        image={image}
+        role={role}
+        page={page}
+        currentPage={currentPage}
+        turning={turning}
+      />
+    ));
 
   return (
-    <FlatList
-      // A new width means new item offsets: remount at the current Page.
-      key={size.width}
-      ref={listRef}
-      data={indices}
-      extraData={{ current, fontSize, box, frames }}
-      keyExtractor={(index) => String(index)}
-      horizontal
-      pagingEnabled
-      showsHorizontalScrollIndicator={false}
-      initialScrollIndex={order.indexOf(current)}
-      getItemLayout={(_, index) => ({ length: size.width, offset: size.width * index, index })}
-      initialNumToRender={1}
-      maxToRenderPerBatch={1}
-      windowSize={3}
-      viewabilityConfig={VIEWABILITY}
-      onViewableItemsChanged={onViewable}
-      renderItem={({ index }) => {
-        const page = order.pageAt(index);
-        return (
-          <View style={{ width: size.width, height: size.height }}>
-            {isInWindow(page, current) ? (
-              <WindowedPage
-                db={db}
-                info={info}
-                fontMgr={fontMgr}
-                measure={measure}
-                layoutPageNumber={page}
-                box={box}
-                frame={frames[pageSide(printedFromLayout(page))]}
-                fontSize={fontSize}
-              />
-            ) : null}
-          </View>
-        );
-      }}
-    />
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <GestureDetector gesture={pan}>
+        <View style={{ width: size.width, height: size.height }}>
+          <Canvas style={{ width: size.width, height: size.height }}>
+            <Fill color={PAPER_COLOR} />
+            <Group transform={[{ translateX: box.x }, { translateY: box.y }]}>
+              {layers('target')}
+              <Group clip={liftedPath}>
+                <Rect x={0} y={0} width={page.width} height={page.height}>
+                  <LinearGradient start={crease} end={shadowEnd} colors={['rgba(0,0,0,0.35)', 'rgba(0,0,0,0)']} />
+                </Rect>
+              </Group>
+              <Group clip={flatPath}>
+                {layers('current')}
+                <Path path={flapPath} color="rgba(0,0,0,0.28)">
+                  <BlurMask blur={10} style="normal" />
+                </Path>
+              </Group>
+              <Group clip={flapPath}>
+                <Fill color={FLAP_PAPER_COLOR} />
+                <Group matrix={leafBackMatrix}>{layers('leafBack')}</Group>
+                <Group matrix={flapMatrix}>{layers('showThrough')}</Group>
+                <Rect x={-page.width} y={-page.height} width={3 * page.width} height={3 * page.height}>
+                  <LinearGradient
+                    start={crease}
+                    end={creaseShadingEnd}
+                    colors={['rgba(0,0,0,0.22)', 'rgba(255,255,255,0.12)', 'rgba(0,0,0,0.05)']}
+                    positions={[0, 0.6, 1]}
+                  />
+                </Rect>
+              </Group>
+            </Group>
+          </Canvas>
+        </View>
+      </GestureDetector>
+    </GestureHandlerRootView>
   );
 }
-
-type WindowedPageProps = {
-  db: SQLiteDatabase;
-  info: MushafInfo;
-  fontMgr: SkTypefaceFontProvider;
-  measure: Measure;
-  layoutPageNumber: number;
-  box: Box;
-  frame: FrameGeometry;
-  fontSize: number;
-};
 
 /**
- * One mounted Page: read, laid out at the shared Mushaf font size in the Page Frame's text area, and
- * drawn with its frame (and its ruku signs, level with their Lines) inside its Page box.
+ * What a Page's image is drawn as in a turn: the target underneath, the current Page before the fold,
+ * the target on a Leaf's back, or the current Page showing faintly through a plain back.
  */
-function WindowedPage({ db, info, fontMgr, measure, layoutPageNumber, box, frame, fontSize }: WindowedPageProps) {
-  const page = useMemo(() => readPage(db, layoutPageNumber), [db, layoutPageNumber]);
-  const header = useMemo(() => pageHeader(page, printedFromLayout(layoutPageNumber)), [page, layoutPageNumber]);
-  const layout = useMemo(
-    () =>
-      layoutPage({
-        page,
-        linesPerPage: info.linesPerPage,
-        measure,
-        textArea: sizeOf(frame.textArea),
-        fontSize,
-        tuning: DEFAULT_TUNING,
-      }),
-    [page, info.linesPerPage, measure, frame, fontSize],
-  );
-  const placedRukuSigns = useMemo(
-    () => rukuSignPlacements(readRukuSigns(db, layoutPageNumber), layout.lines, frame),
-    [db, layoutPageNumber, layout, frame],
-  );
+type LayerRole = 'target' | 'current' | 'leafBack' | 'showThrough';
+
+type PageLayerProps = {
+  layoutPage: number;
+  image: SkImage;
+  role: LayerRole;
+  page: Size;
+  currentPage: SharedValue<number>;
+  turning: SharedValue<0 | TurnDirection>;
+};
+
+/** One Page's image in one role; shown only while the turn gives the Page that role. */
+function PageLayer({ layoutPage, image, role, page, currentPage, turning }: PageLayerProps) {
+  const opacity = useDerivedValue(() => {
+    const dir = turning.get();
+    const current = currentPage.get();
+    const isCurrent = layoutPage === current;
+    const isTarget = dir !== 0 && layoutPage === current + dir;
+    switch (role) {
+      case 'current':
+        return isCurrent ? 1 : 0;
+      case 'target':
+        return isTarget ? 1 : 0;
+      case 'leafBack':
+        return isTarget && isLeafTurn(current, dir) ? LEAF_BACK_OPACITY : 0;
+      case 'showThrough':
+        return isCurrent && dir !== 0 && !isLeafTurn(current, dir) ? SHOW_THROUGH_OPACITY : 0;
+    }
+  });
   return (
-    <View style={[styles.box, { left: box.x, top: box.y }]}>
-      <PageCanvas
-        layout={layout}
-        frame={frame}
-        header={header}
-        placedRukuSigns={placedRukuSigns}
-        fontMgr={fontMgr}
-        width={box.w}
-        height={box.h}
-        inkCenterEm={info.inkCenterEm}
-      />
-    </View>
+    <Group opacity={opacity}>
+      <Image image={image} x={0} y={0} width={page.width} height={page.height} fit="fill" />
+    </Group>
   );
 }
 
-const styles = StyleSheet.create({
-  box: { position: 'absolute' },
-});
+function toPath(polygon: Point[]) {
+  'worklet';
+  const builder = Skia.PathBuilder.Make();
+  polygon.forEach((p, i) => (i === 0 ? builder.moveTo(p.x, p.y) : builder.lineTo(p.x, p.y)));
+  if (polygon.length > 0) builder.close();
+  return builder.detach();
+}
+
+function toMatrix([a, b, c, d, e, f]: Affine) {
+  'worklet';
+  return Skia.Matrix([a, b, c, d, e, f, 0, 0, 1]);
+}

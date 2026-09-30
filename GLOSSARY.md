@@ -22,6 +22,14 @@ _Avoid_: Layout (alone, when the Mushaf Layout could be meant)
 One page of a Mushaf, identified by its printed page number; always shown whole, never reflowed.
 _Avoid_: Screen, spread
 
+**Leaf**:
+One sheet of the Mushaf, with a Page printed on each face; a left-hand Page's back is the next Page.
+_Avoid_: Sheet, folio
+
+**Page Turn**:
+Moving from one Page to the next or previous one by folding the current Page over. It is a Leaf turn when a real book would turn a Leaf there (forward from a left-hand Page, back from a right-hand one).
+_Avoid_: Swipe, flip, page change
+
 **Line**:
 One of the fixed rows of a Page (15 or 16), starting and ending on a fixed word and stretched edge to edge.
 _Avoid_: Row, text line

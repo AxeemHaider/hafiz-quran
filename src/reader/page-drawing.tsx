@@ -1,4 +1,4 @@
-import { Canvas, Group, Paragraph, type SkTypefaceFontProvider } from '@shopify/react-native-skia';
+import { Group, Paragraph, type SkTypefaceFontProvider } from '@shopify/react-native-skia';
 import { useMemo } from 'react';
 
 import { lineRuleYs, type FrameGeometry, type PageHeader } from '@/frame/page-frame';
@@ -16,8 +16,6 @@ type Props = {
   /** The ruku signs in the margin column, placed (Page coordinates). */
   placedRukuSigns: PlacedRukuSign[];
   fontMgr: SkTypefaceFontProvider;
-  width: number;
-  height: number;
   /** Middle of the font's ink, above the baseline, in em: what gets centred on each Line's centre. */
   inkCenterEm: number;
 };
@@ -26,8 +24,9 @@ type Props = {
  * Draws a Page: its Page Frame, then its PageLayout inside the frame's text area. Each word is its own
  * RTL Paragraph where the layout put it; no layout logic here. Each word's right edge is pinned to the
  * layout's anchor; it is then widened leftward by the Line's scale and stretched around the Line centre.
+ * It has no Canvas of its own: the pager draws it offscreen, once, to the Page's image.
  */
-export function PageCanvas({ layout, frame, header, placedRukuSigns, fontMgr, width, height, inkCenterEm }: Props) {
+export function PageDrawing({ layout, frame, header, placedRukuSigns, fontMgr, inkCenterEm }: Props) {
   const words = useMemo(
     () =>
       layout.lines.flatMap((line) =>
@@ -49,7 +48,7 @@ export function PageCanvas({ layout, frame, header, placedRukuSigns, fontMgr, wi
   useDisposeTexts(words);
 
   return (
-    <Canvas style={{ width, height }}>
+    <>
       <FrameDrawing
         frame={frame}
         header={header}
@@ -65,6 +64,6 @@ export function PageCanvas({ layout, frame, header, placedRukuSigns, fontMgr, wi
           </Group>
         ))}
       </Group>
-    </Canvas>
+    </>
   );
 }
