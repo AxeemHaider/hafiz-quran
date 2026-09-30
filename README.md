@@ -25,6 +25,18 @@ In the output, you'll find options to open the app in a
 
 You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
 
+## Mushaf data (required to run the reader)
+
+The Page reader bundles a prepared Mushaf database and font that are **not in git** (QUL licences unresolved, see #8). Generate them from the local QUL sandbox (`sandbox/qul/`, see its README):
+
+```bash
+npm run prepare:mushaf
+# from a worktree: QUL_DIR=/path/to/main/checkout/sandbox/qul npm run prepare:mushaf
+# swap the font:   MUSHAF_FONT=/path/to/font.ttf npm run prepare:mushaf   (or --qul / --font / --out)
+```
+
+This writes `assets/generated/mushaf/mushaf.db` and `assets/generated/mushaf/mushaf.ttf` (git-ignored). It fails without writing anything if the data is wrong. The schema is documented at the top of `scripts/prepare-mushaf.mjs`.
+
 ## Get a fresh project
 
 When you're ready, run:
