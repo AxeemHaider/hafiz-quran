@@ -2,6 +2,8 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 
 import type { Line, LineType, Page } from '@/layout';
 
+import { withSpecialLineContent } from './special-lines';
+
 /** The name the prepared database is imported under in the app's SQLite directory. */
 export const MUSHAF_DB_NAME = 'mushaf.db';
 
@@ -49,7 +51,7 @@ export function readMushafInfo(db: SQLiteDatabase): MushafInfo {
   };
 }
 
-/** A Page's Lines with their words, in order. `surah_name` and `basmallah` Lines have no words yet. */
+/** A Page's Lines with their words, in order; `surah_name` and `basmallah` Lines carry their app-side text. */
 export function readPage(db: SQLiteDatabase, layoutPageNumber: number): Page {
   const lineRows = db.getAllSync<LineRow>(
     'select line_number, line_type, is_centered, surah_number from lines where page_number = ? order by line_number',
@@ -68,5 +70,5 @@ export function readPage(db: SQLiteDatabase, layoutPageNumber: number): Page {
   }));
   const byNumber = new Map(lines.map((l) => [l.lineNumber, l]));
   for (const w of wordRows) byNumber.get(w.line_number)?.words.push({ id: w.id, location: w.location, text: w.text });
-  return { layoutPageNumber, lines };
+  return withSpecialLineContent({ layoutPageNumber, lines });
 }
