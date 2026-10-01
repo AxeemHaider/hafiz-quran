@@ -23,7 +23,8 @@ A hafiz turning Pages should feel a book, not a list. So a Page Turn is a fold t
 ## Consequences
 
 - During a turn and at rest, the Page on screen is an image, not live text. That is fine while nothing is interactive. Tap, highlight and hide-for-testing (ADR 0001) will need the live drawing or word boxes above the image.
-- A turn can't start until the target Page's image is ready. Right after a turn, a second one waits for the new neighbour to be drawn.
+- A turn can't start until the target Page's image is ready. So the window holds two Pages either side of the current one: right after a turn the next Page is already there, and only the one beyond it has to be drawn. Swiping faster than Pages can be drawn still outruns it. Five images are held in memory, not three.
+- A new swipe does not wait for the last turn to settle: the settling turn lands at once and the new one starts.
 - Smoothness was judged on one Android phone in Expo Go; iOS and low-end Android are unchecked.
 
 ## Evidence

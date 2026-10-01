@@ -68,6 +68,7 @@ const IDENTITY: Affine = [1, 0, 0, 0, 1, 0];
  * the next Page comes in from the left, as in the book. Each Page in the window is drawn once to an
  * image; one Canvas then draws the turn from shared values, so the drag and the fold stay on the UI
  * thread. JS runs once per turn, when it settles. A route change jumps to its Page without a fold.
+ * Quick swipes don't wait: a new swipe lands the turn still settling and starts the next one.
  */
 export function PagePager({ db, info, fontMgr, measure, size, layoutPageNumber: targetPage, onPageChange }: Props) {
   const box = pageBox(size, DEFAULT_TUNING.maxPageWidth);
@@ -98,11 +99,16 @@ export function PagePager({ db, info, fontMgr, measure, size, layoutPageNumber: 
   );
 
   const [current, setCurrent] = useState(targetPage);
-  // Jump to a Page asked for from outside (a route change), not to the one just turned to.
+  // Jump to a Page asked for from outside (a route change), not to the one just turned to: the route
+  // follows the hafiz's own turns too, and by then the UI thread may already be a Page further on.
   const [shownTarget, setShownTarget] = useState(targetPage);
+  const [jump, setJump] = useState({ to: targetPage });
   if (targetPage !== shownTarget) {
     setShownTarget(targetPage);
-    setCurrent(targetPage);
+    if (targetPage !== current) {
+      setCurrent(targetPage);
+      setJump({ to: targetPage });
+    }
   }
   const images = usePageImages(current, info.pageCount, draw);
 
@@ -115,12 +121,14 @@ export function PagePager({ db, info, fontMgr, measure, size, layoutPageNumber: 
   const dragY = useSharedValue(0);
   const startY = useSharedValue(0);
   const settling = useSharedValue(false);
+  // Where a settling turn lands: on the next or previous Page, or 0 when it is springing back.
+  const landing = useSharedValue<0 | TurnDirection>(0);
   // Pages whose image is ready: a turn only starts towards one of these.
   const ready = useSharedValue<number[]>([]);
 
   useEffect(() => {
-    currentPage.set(current);
-  }, [current, currentPage]);
+    currentPage.set(jump.to);
+  }, [jump, currentPage]);
   useEffect(() => {
     ready.set([...images.keys()]);
   }, [images, ready]);
@@ -134,33 +142,63 @@ export function PagePager({ db, info, fontMgr, measure, size, layoutPageNumber: 
   );
 
   const pageCount = info.pageCount;
+  /** Starts a turn the way the swipe has travelled, if that Page is ready; false if none started. */
+  const startTurn = (translationX: number) => {
+    'worklet';
+    const dir = turnDirection(translationX);
+    if (dir === 0) return false;
+    const target = currentPage.get() + dir;
+    if (target < 1 || target > pageCount || !ready.get().includes(target)) return false;
+    turning.set(dir);
+    cornerY.set(grabbedCornerY(startY.get(), page));
+    return true;
+  };
+  /** Moves the grabbed corner to where the swipe has dragged it. */
+  const drag = (translationX: number, translationY: number) => {
+    'worklet';
+    const dir = turning.get() as TurnDirection;
+    const point = dragPoint({ x: translationX, y: translationY }, dir, cornerY.get(), page);
+    dragX.set(point.x);
+    dragY.set(point.y);
+  };
+  /** Ends a settling turn at once, where it was going: the turn is over and the Page lies flat. */
+  const land = () => {
+    'worklet';
+    const dir = landing.get();
+    if (dir !== 0) {
+      const turnedTo = currentPage.get() + dir;
+      currentPage.set(turnedTo);
+      scheduleOnRN(onTurned, turnedTo);
+    }
+    landing.set(0);
+    turning.set(0);
+    dragX.set(0);
+    settling.set(false);
+  };
   const pan = Gesture.Pan()
     .activeOffsetX([-10, 10])
     .onBegin((e) => {
       startY.set(e.y - box.y);
     })
+    .onStart(() => {
+      // A new swipe doesn't wait for the last turn to settle.
+      if (settling.get()) land();
+    })
     .onUpdate((e) => {
-      if (settling.get()) return;
-      if (turning.get() === 0) {
-        const dir = turnDirection(e.translationX);
-        if (dir === 0) return;
-        const target = currentPage.get() + dir;
-        if (target < 1 || target > pageCount || !ready.get().includes(target)) return;
-        turning.set(dir);
-        cornerY.set(grabbedCornerY(startY.get(), page));
-      }
-      const dir = turning.get() as TurnDirection;
-      const point = dragPoint({ x: e.translationX, y: e.translationY }, dir, cornerY.get(), page);
-      dragX.set(point.x);
-      dragY.set(point.y);
+      if (turning.get() === 0 && !startTurn(e.translationX)) return;
+      drag(e.translationX, e.translationY);
     })
     .onEnd((e) => {
+      // A quick flick can end before any update has travelled: it still turns.
+      if (turning.get() === 0 && startTurn(e.translationX)) drag(e.translationX, e.translationY);
       const dir = turning.get();
       if (settling.get() || dir === 0) return;
       settling.set(true);
       const velocity = dir * e.velocityX;
       const from = { x: dragX.get(), y: dragY.get() };
+      // A swipe that lands the turn first cancels these animations; then `done` is false.
       if (finishesTurn(from, velocity, page)) {
+        landing.set(dir);
         const to = finishPoint(cornerY.get(), page);
         const ms = ((to.x - from.x) / Math.max(velocity, 2.2 * page.width)) * 1000;
         const duration = Math.min(FINISH_MS.max, Math.max(FINISH_MS.min, ms));
@@ -168,13 +206,7 @@ export function PagePager({ db, info, fontMgr, measure, size, layoutPageNumber: 
         dragY.set(withTiming(to.y, { duration, easing }));
         dragX.set(
           withTiming(to.x, { duration, easing }, (done) => {
-            if (!done) return;
-            const turnedTo = currentPage.get() + dir;
-            currentPage.set(turnedTo);
-            turning.set(0);
-            dragX.set(0);
-            settling.set(false);
-            scheduleOnRN(onTurned, turnedTo);
+            if (done) land();
           }),
         );
       } else {
@@ -182,9 +214,8 @@ export function PagePager({ db, info, fontMgr, measure, size, layoutPageNumber: 
         const easing = Easing.out(Easing.cubic);
         dragY.set(withTiming(cornerY.get(), { duration, easing }));
         dragX.set(
-          withTiming(0, { duration, easing }, () => {
-            turning.set(0);
-            settling.set(false);
+          withTiming(0, { duration, easing }, (done) => {
+            if (done) land();
           }),
         );
       }
