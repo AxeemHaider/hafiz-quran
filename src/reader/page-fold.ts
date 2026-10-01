@@ -58,9 +58,13 @@ export const TURN_TUNING = {
   finishAt: 0.55,
 };
 
-/** Swiping right turns forward: the next Page comes in from the left, as in the printed Mushaf. */
-export function turnDirection(translationX: number): TurnDirection {
+/**
+ * Swiping right turns forward: the next Page comes in from the left, as in the printed Mushaf. A swipe
+ * that has not travelled yet has no direction (0): on Android a pan's first update reports no travel.
+ */
+export function turnDirection(translationX: number): 0 | TurnDirection {
   'worklet';
+  if (translationX === 0) return 0;
   return translationX > 0 ? 1 : -1;
 }
 

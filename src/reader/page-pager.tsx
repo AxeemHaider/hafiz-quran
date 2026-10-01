@@ -143,6 +143,7 @@ export function PagePager({ db, info, fontMgr, measure, size, layoutPageNumber: 
       if (settling.get()) return;
       if (turning.get() === 0) {
         const dir = turnDirection(e.translationX);
+        if (dir === 0) return;
         const target = currentPage.get() + dir;
         if (target < 1 || target > pageCount || !ready.get().includes(target)) return;
         turning.set(dir);

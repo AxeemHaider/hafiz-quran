@@ -26,6 +26,10 @@ describe('turn direction', () => {
     expect(turnDirection(-40)).toBe(-1);
   });
 
+  test('a swipe that has not travelled yet has no direction, so it cannot lock in a backward turn', () => {
+    expect(turnDirection(0)).toBe(0);
+  });
+
   test('a swipe starting in the top half grabs the top corner, otherwise the bottom one', () => {
     expect(grabbedCornerY(100, page)).toBe(0);
     expect(grabbedCornerY(500, page)).toBe(700);
